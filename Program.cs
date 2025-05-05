@@ -10,15 +10,22 @@ builder.Services.AddSwaggerGen();
 // Register MongoDB service
 builder.Services.AddSingleton<MongoDbService>();
 
-// Add CORS policy for the React client
+// Add CORS policy for both local development and production frontend
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowReactApp",
+    options.AddPolicy("AllowedOrigins",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5173", "http://localhost:80")
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
+            policy.WithOrigins(
+                    "http://localhost:5173", 
+                    "http://localhost:5174",
+                    "http://localhost:5234",
+                    "http://localhost:80",
+                    "https://www.ghurabafidunya.live",
+                    "https://ghurabafidunya.live"
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod();
         });
 });
 
@@ -33,8 +40,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Use CORS policy
-app.UseCors("AllowReactApp");
+// Use CORS policy with updated policy name
+app.UseCors("AllowedOrigins");
 
 app.UseAuthorization();
 
