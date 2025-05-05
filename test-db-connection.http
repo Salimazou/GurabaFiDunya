@@ -1,0 +1,36 @@
+### Test Database Connection via ping
+GET https://localhost:7186/api/mongodb/ping
+Accept: application/json
+
+### Register a new test user
+POST https://localhost:7186/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "email": "test@example.com",
+  "password": "Password123!",
+  "firstName": "Test",
+  "lastName": "User"
+}
+
+### Login with created user
+POST https://localhost:7186/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Password123!"
+}
+
+### Create a Todo for the user
+POST https://localhost:7186/api/todos
+Content-Type: application/json
+
+{
+  "title": "Test Todo",
+  "description": "This is a test todo to verify database connection",
+  "userId": "REPLACE_WITH_USER_ID_FROM_REGISTER_RESPONSE",
+  "priority": 1,
+  "dueDate": "2023-12-31T23:59:59Z"
+} 

@@ -1,0 +1,52 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Rider ignored files
+/modules.xml
+/contentModel.xml
+/projectSettingsUpdater.xml
+/.idea.server.iml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+
+
+# Build output
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# Rider/VS Code/IDE files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vsidx
+.dbtcache.v2/
+
+# Logs
+*.log
+
+# VS generated
+*.ncb
+*.cache
+*.dbmdl
+*.bak
+*.Backup
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# dotenv or secrets
+.env
+
+# publish artifacts
+publish/
