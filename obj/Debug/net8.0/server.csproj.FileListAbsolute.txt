@@ -34,10 +34,10 @@ C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\stati
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\staticwebassets\msbuild.buildMultiTargeting.server.props
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\staticwebassets\msbuild.buildTransitive.server.props
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\staticwebassets.pack.json
-C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\server.csproj.Up2Date
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\server.dll
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\refint\server.dll
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\server.pdb
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\server.genruntimeconfig.cache
 C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\ref\server.dll
+C:\Users\s.azouaoui\OneDrive - Allsetra\C#\Website\server\obj\Debug\net8.0\server.sourcelink.json
