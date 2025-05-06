@@ -3,6 +3,7 @@ using server.Models;
 using server.Services;
 using System.Security.Cryptography;
 using System.Text;
+using System.Security.Claims;
 
 namespace server.Controllers;
 
@@ -12,11 +13,16 @@ public class AuthController : ControllerBase
 {
     private readonly ILogger<AuthController> _logger;
     private readonly MongoDbService _mongoDbService;
+    private readonly JwtService _jwtService;
 
-    public AuthController(ILogger<AuthController> logger, MongoDbService mongoDbService)
+    public AuthController(
+        ILogger<AuthController> logger, 
+        MongoDbService mongoDbService,
+        JwtService jwtService)
     {
         _logger = logger;
         _mongoDbService = mongoDbService;
+        _jwtService = jwtService;
     }
     
     [HttpPost("login")]
@@ -41,14 +47,17 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Onjuist wachtwoord" });
             }
             
-            // Create response with mock token
+            // Generate JWT token
+            var token = _jwtService.GenerateToken(user);
+            
+            // Create response
             var response = new AuthResponseDto
             {
                 Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
                 Roles = user.Roles,
-                Token = "mock-jwt-token" // In a real app, you'd generate a JWT token
+                Token = token
             };
             
             return Ok(response);
@@ -74,7 +83,7 @@ public class AuthController : ControllerBase
                 return Conflict(new { message = "Deze email is al in gebruik" });
             }
             
-            // Create new user
+            // Create new user with User role by default
             var user = new User
             {
                 Username = registerDto.Username,
@@ -91,13 +100,16 @@ public class AuthController : ControllerBase
             // Re-fetch the user to get the ID assigned by MongoDB
             user = await _mongoDbService.GetUserByEmailAsync(registerDto.Email);
             
+            // Generate JWT token
+            var token = _jwtService.GenerateToken(user);
+            
             var response = new AuthResponseDto
             {
                 Id = user.Id,
                 Username = user.Username,
                 Email = user.Email,
                 Roles = user.Roles,
-                Token = "mock-jwt-token" // In a real app, you'd generate a JWT token
+                Token = token
             };
             
             return Ok(response);
@@ -114,15 +126,20 @@ public class AuthController : ControllerBase
     {
         try
         {
-            // In a real app, you would get the user ID from the token
-            // For this demo, we'll just return the first user
-            var users = await _mongoDbService.GetAllUsersAsync();
-            if (users.Count == 0)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userId))
             {
-                return NotFound(new { message = "Geen gebruikers gevonden" });
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
             }
             
-            var user = users[0];
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+            
             return Ok(user);
         }
         catch (Exception ex)

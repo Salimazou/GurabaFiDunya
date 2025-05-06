@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using server.Models;
 using server.Services;
+using System.Security.Claims;
 
 namespace server.Controllers;
 
@@ -18,6 +20,7 @@ public class TodosController : ControllerBase
     }
     
     [HttpGet]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAllTodos()
     {
         try
@@ -33,10 +36,20 @@ public class TodosController : ControllerBase
     }
     
     [HttpGet("user/{userId}")]
+    [Authorize]
     public async Task<IActionResult> GetTodosByUserId(string userId)
     {
         try
         {
+            // Only allow users to access their own todos or admins to access any todos
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (currentUserId != userId && !isAdmin)
+            {
+                return Forbid();
+            }
+            
             var todos = await _mongoDbService.GetTodosByUserIdAsync(userId);
             return Ok(todos);
         }
@@ -48,6 +61,7 @@ public class TodosController : ControllerBase
     }
     
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<IActionResult> GetTodoById(string id)
     {
         try
@@ -57,6 +71,15 @@ public class TodosController : ControllerBase
             if (todo == null)
             {
                 return NotFound(new { message = "Todo niet gevonden" });
+            }
+            
+            // Only allow users to access their own todos or admins to access any todos
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (todo.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
             }
             
             return Ok(todo);
@@ -69,10 +92,33 @@ public class TodosController : ControllerBase
     }
     
     [HttpPost]
+    [Authorize]
     public async Task<IActionResult> CreateTodo([FromBody] Todo todo)
     {
         try
         {
+            // Set the user ID to the current user's ID unless admin
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (!isAdmin && todo.UserId != currentUserId)
+            {
+                todo.UserId = currentUserId;
+            }
+            
+            // Get user to set username
+            var user = await _mongoDbService.GetUserByIdAsync(todo.UserId);
+            if (user != null)
+            {
+                todo.Username = user.Username ?? user.Email;
+            }
+            
+            // Make sure category is not null to avoid filtering issues
+            if (string.IsNullOrWhiteSpace(todo.Category))
+            {
+                todo.Category = "General";
+            }
+            
             todo.CreatedAt = DateTime.UtcNow;
             await _mongoDbService.CreateTodoAsync(todo);
             
@@ -97,6 +143,7 @@ public class TodosController : ControllerBase
     }
     
     [HttpPut("{id}")]
+    [Authorize]
     public async Task<IActionResult> UpdateTodo(string id, [FromBody] Todo todo)
     {
         try
@@ -107,6 +154,19 @@ public class TodosController : ControllerBase
             {
                 return NotFound(new { message = "Todo niet gevonden" });
             }
+            
+            // Only allow users to update their own todos or admins to update any todos
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (existingTodo.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
+            }
+            
+            // Preserve the original user ID and username
+            todo.UserId = existingTodo.UserId;
+            todo.Username = existingTodo.Username;
             
             todo.Id = id;
             todo.UpdatedAt = DateTime.UtcNow;
@@ -124,6 +184,7 @@ public class TodosController : ControllerBase
     }
     
     [HttpPatch("{id}/complete")]
+    [Authorize]
     public async Task<IActionResult> MarkTodoAsComplete(string id)
     {
         try
@@ -135,7 +196,16 @@ public class TodosController : ControllerBase
                 return NotFound(new { message = "Todo niet gevonden" });
             }
             
-            await _mongoDbService.UpdateTodoCompletionAsync(id, true);
+            // Only allow users to complete their own todos or admins to complete any todos
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (todo.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
+            }
+            
+            await _mongoDbService.UpdateTodoCompletionAsync(id, !todo.IsCompleted);
             
             // Re-fetch the updated todo
             todo = await _mongoDbService.GetTodoByIdAsync(id);
@@ -150,6 +220,7 @@ public class TodosController : ControllerBase
     }
     
     [HttpDelete("{id}")]
+    [Authorize]
     public async Task<IActionResult> DeleteTodo(string id)
     {
         try
@@ -159,6 +230,15 @@ public class TodosController : ControllerBase
             if (todo == null)
             {
                 return NotFound(new { message = "Todo niet gevonden" });
+            }
+            
+            // Only allow users to delete their own todos or admins to delete any todos
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (todo.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
             }
             
             await _mongoDbService.DeleteTodoAsync(id);

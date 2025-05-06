@@ -21,6 +21,12 @@ public class Todo
     [BsonElement("userId")]
     public string UserId { get; set; } = string.Empty;
     
+    [BsonElement("username")]
+    public string? Username { get; set; }
+    
+    [BsonElement("category")]
+    public string? Category { get; set; }
+    
     [BsonElement("priority")]
     public int Priority { get; set; } = 0; // 0 = Low, 1 = Medium, 2 = High
     

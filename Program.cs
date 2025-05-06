@@ -1,4 +1,8 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using server.Middleware;
 using server.Services;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,8 +11,29 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Register MongoDB service
+// Register services
 builder.Services.AddSingleton<MongoDbService>();
+builder.Services.AddSingleton<JwtService>();
+
+// Add JWT Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.ASCII.GetBytes(
+                    builder.Configuration["Jwt:Secret"] ?? 
+                    "this_is_a_default_key_for_development_only_should_be_changed_in_production"
+                )
+            ),
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero
+        };
+    });
 
 // Add CORS policy for both local development and production frontend
 builder.Services.AddCors(options =>
@@ -43,7 +68,12 @@ app.UseHttpsRedirection();
 // Use CORS policy with updated policy name
 app.UseCors("AllowedOrigins");
 
+// Enable authentication
+app.UseAuthentication();
 app.UseAuthorization();
+
+// Add custom admin authentication middleware
+app.UseAdminAuth();
 
 // Use controllers
 app.MapControllers();
