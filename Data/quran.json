@@ -1,0 +1,49 @@
+[
+  {
+    "Number": 1,
+    "Name": "Al-Fatiha",
+    "ArabicName": "الفاتحة",
+    "Translation": "The Opening",
+    "TotalAyahs": 7,
+    "Ayahs": [
+      {
+        "SurahNumber": 1,
+        "AyahNumber": 1,
+        "ArabicText": "بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ",
+        "ArabicTextNoDiacritics": "بسم الله الرحمن الرحيم",
+        "Translation": "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
+        "Words": [
+          "بِسْمِ",
+          "اللَّهِ",
+          "الرَّحْمَنِ",
+          "الرَّحِيمِ"
+        ],
+        "WordsNoDiacritics": [
+          "بسم",
+          "الله",
+          "الرحمن",
+          "الرحيم"
+        ]
+      },
+      {
+        "SurahNumber": 1,
+        "AyahNumber": 2,
+        "ArabicText": "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ",
+        "ArabicTextNoDiacritics": "الحمد لله رب العالمين",
+        "Translation": "[All] praise is [due] to Allah, Lord of the worlds -",
+        "Words": [
+          "الْحَمْدُ",
+          "لِلَّهِ",
+          "رَبِّ",
+          "الْعَالَمِينَ"
+        ],
+        "WordsNoDiacritics": [
+          "الحمد",
+          "لله",
+          "رب",
+          "العالمين"
+        ]
+      }
+    ]
+  }
+]
