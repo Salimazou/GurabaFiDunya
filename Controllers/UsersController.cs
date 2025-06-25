@@ -171,4 +171,138 @@ public class UsersController : ControllerBase
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
+    
+    [HttpGet("me/favorite-reciters")]
+    [Authorize]
+    public async Task<IActionResult> GetFavoriteReciters()
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
+            }
+            
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+            
+            return Ok(new { favoriteReciters = user.FavoriteReciters });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting favorite reciters");
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    [HttpPost("me/favorite-reciters/{reciterId}")]
+    [Authorize]
+    public async Task<IActionResult> AddFavoriteReciter(string reciterId)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
+            }
+            
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+            
+            if (!user.FavoriteReciters.Contains(reciterId))
+            {
+                user.FavoriteReciters.Add(reciterId);
+                user.UpdatedAt = DateTime.UtcNow;
+                await _mongoDbService.UpdateUserAsync(userId, user);
+            }
+            
+            return Ok(new { message = "Reciteerder toegevoegd aan favorieten", favoriteReciters = user.FavoriteReciters });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding favorite reciter {ReciterId}", reciterId);
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    [HttpDelete("me/favorite-reciters/{reciterId}")]
+    [Authorize]
+    public async Task<IActionResult> RemoveFavoriteReciter(string reciterId)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
+            }
+            
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+            
+            if (user.FavoriteReciters.Contains(reciterId))
+            {
+                user.FavoriteReciters.Remove(reciterId);
+                user.UpdatedAt = DateTime.UtcNow;
+                await _mongoDbService.UpdateUserAsync(userId, user);
+            }
+            
+            return Ok(new { message = "Reciteerder verwijderd uit favorieten", favoriteReciters = user.FavoriteReciters });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing favorite reciter {ReciterId}", reciterId);
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    [HttpPut("me/favorite-reciters")]
+    [Authorize]
+    public async Task<IActionResult> UpdateFavoriteReciters([FromBody] List<string> favoriteReciters)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
+            }
+            
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+            
+            user.FavoriteReciters = favoriteReciters ?? new List<string>();
+            user.UpdatedAt = DateTime.UtcNow;
+            await _mongoDbService.UpdateUserAsync(userId, user);
+            
+            return Ok(new { message = "Favoriete reciteerders bijgewerkt", favoriteReciters = user.FavoriteReciters });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating favorite reciters");
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
 } 
