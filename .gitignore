@@ -50,3 +50,10 @@ Thumbs.db
 
 # publish artifacts
 publish/
+# Large ML models
+*.bin
+*.model
+*.pt
+*.onnx
+Models/
+
