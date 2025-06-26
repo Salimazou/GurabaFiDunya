@@ -7,13 +7,13 @@ using System.Security.Claims;
 namespace server.Controllers;
 
 [ApiController]
-[Route("api/reminders")]
-public class RemindersController : ControllerBase
+[Route("api/simple-reminders")]
+public class SimpleRemindersController : ControllerBase
 {
-    private readonly ILogger<RemindersController> _logger;
+    private readonly ILogger<SimpleRemindersController> _logger;
     private readonly MongoDbService _mongoDbService;
 
-    public RemindersController(ILogger<RemindersController> logger, MongoDbService mongoDbService)
+    public SimpleRemindersController(ILogger<SimpleRemindersController> logger, MongoDbService mongoDbService)
     {
         _logger = logger;
         _mongoDbService = mongoDbService;
@@ -21,23 +21,23 @@ public class RemindersController : ControllerBase
     
     [HttpGet]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> GetAllReminders()
+    public async Task<IActionResult> GetAllSimpleReminders()
     {
         try
         {
-            var reminders = await _mongoDbService.GetAllRemindersAsync();
+            var reminders = await _mongoDbService.GetAllSimpleRemindersAsync();
             return Ok(reminders);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting all reminders");
+            _logger.LogError(ex, "Error getting all simple reminders");
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpGet("user/{userId}")]
     [Authorize]
-    public async Task<IActionResult> GetRemindersByUserId(string userId)
+    public async Task<IActionResult> GetSimpleRemindersByUserId(string userId)
     {
         try
         {
@@ -50,19 +50,19 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            var reminders = await _mongoDbService.GetRemindersByUserIdAsync(userId);
+            var reminders = await _mongoDbService.GetSimpleRemindersByUserIdAsync(userId);
             return Ok(reminders);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting reminders for user {UserId}", userId);
+            _logger.LogError(ex, "Error getting simple reminders for user {UserId}", userId);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpGet("user/{userId}/active")]
     [Authorize]
-    public async Task<IActionResult> GetActiveRemindersByUserId(string userId)
+    public async Task<IActionResult> GetActiveSimpleRemindersByUserId(string userId)
     {
         try
         {
@@ -74,19 +74,19 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            var reminders = await _mongoDbService.GetActiveRemindersByUserIdAsync(userId);
+            var reminders = await _mongoDbService.GetActiveSimpleRemindersByUserIdAsync(userId);
             return Ok(reminders);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting active reminders for user {UserId}", userId);
+            _logger.LogError(ex, "Error getting active simple reminders for user {UserId}", userId);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpGet("user/{userId}/completed")]
     [Authorize]
-    public async Task<IActionResult> GetCompletedRemindersByUserId(string userId)
+    public async Task<IActionResult> GetCompletedSimpleRemindersByUserId(string userId)
     {
         try
         {
@@ -98,67 +98,19 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            var reminders = await _mongoDbService.GetCompletedRemindersByUserIdAsync(userId);
+            var reminders = await _mongoDbService.GetCompletedSimpleRemindersByUserIdAsync(userId);
             return Ok(reminders);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting completed reminders for user {UserId}", userId);
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-    
-    [HttpGet("user/{userId}/high-priority")]
-    [Authorize]
-    public async Task<IActionResult> GetHighPriorityRemindersByUserId(string userId)
-    {
-        try
-        {
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isAdmin = User.IsInRole("Admin");
-            
-            if (currentUserId != userId && !isAdmin)
-            {
-                return Forbid();
-            }
-            
-            var reminders = await _mongoDbService.GetHighPriorityRemindersByUserIdAsync(userId);
-            return Ok(reminders);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting high priority reminders for user {UserId}", userId);
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-    
-    [HttpGet("user/{userId}/today")]
-    [Authorize]
-    public async Task<IActionResult> GetTodayRemindersByUserId(string userId)
-    {
-        try
-        {
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isAdmin = User.IsInRole("Admin");
-            
-            if (currentUserId != userId && !isAdmin)
-            {
-                return Forbid();
-            }
-            
-            var reminders = await _mongoDbService.GetTodayRemindersByUserIdAsync(userId);
-            return Ok(reminders);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting today reminders for user {UserId}", userId);
+            _logger.LogError(ex, "Error getting completed simple reminders for user {UserId}", userId);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpGet("user/{userId}/stats")]
     [Authorize]
-    public async Task<IActionResult> GetReminderStats(string userId)
+    public async Task<IActionResult> GetSimpleReminderStats(string userId)
     {
         try
         {
@@ -170,23 +122,23 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            var stats = await _mongoDbService.GetReminderStatsAsync(userId);
+            var stats = await _mongoDbService.GetSimpleReminderStatsAsync(userId);
             return Ok(stats);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting reminder stats for user {UserId}", userId);
+            _logger.LogError(ex, "Error getting simple reminder stats for user {UserId}", userId);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
 
     [HttpGet("{id}")]
     [Authorize]
-    public async Task<IActionResult> GetReminderById(string id)
+    public async Task<IActionResult> GetSimpleReminderById(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -206,66 +158,60 @@ public class RemindersController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting reminder {ReminderId}", id);
+            _logger.LogError(ex, "Error getting simple reminder {ReminderId}", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> CreateReminder([FromBody] CreateReminderDto createReminderDto)
+    public async Task<IActionResult> CreateSimpleReminder([FromBody] CreateSimpleReminderDto createReminderDto)
     {
         try
         {
             var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             
-            // Get user to set username
-            var user = await _mongoDbService.GetUserByIdAsync(currentUserId);
-            if (user == null)
+            // Validate reminder type
+            if (!IsValidReminderType(createReminderDto.Type))
             {
-                return Unauthorized(new { message = "Gebruiker niet gevonden" });
+                return BadRequest(new { message = "Ongeldig reminder type. Geldige types: daily, custom_time, specific_time" });
             }
             
-            // Create reminder from DTO
-            var reminder = new Reminder
+            // Validate time settings based on type
+            if (!ValidateTimeSettings(createReminderDto))
             {
+                return BadRequest(new { message = "Ongeldige tijdinstellingen voor het gekozen type" });
+            }
+            
+            // Create reminder
+            var reminder = new SimpleReminder
+            {
+                UserId = currentUserId,
                 Title = createReminderDto.Title,
                 Description = createReminderDto.Description,
-                Category = createReminderDto.Category ?? "General",
-                Priority = createReminderDto.Priority,
-                DueDate = createReminderDto.DueDate,
-                ReminderType = createReminderDto.ReminderType,
-                ReminderTime = createReminderDto.ReminderTime,
-                ReminderStartTime = createReminderDto.ReminderStartTime,
-                ReminderEndTime = createReminderDto.ReminderEndTime,
-                IsRecurring = createReminderDto.IsRecurring ?? false,
-                Tags = createReminderDto.Tags ?? new List<string>(),
-                UserId = currentUserId,
-                Username = user.Username ?? user.Email,
-                CreatedAt = DateTime.UtcNow,
-                IsActive = true,
-                IsCompleted = false,
-                ReminderCount = 0
+                Type = createReminderDto.Type,
+                SpecificTime = createReminderDto.SpecificTime,
+                CustomTimeRanges = createReminderDto.CustomTimeRanges
             };
             
-            await _mongoDbService.CreateReminderAsync(reminder);
+            await _mongoDbService.CreateSimpleReminderAsync(reminder);
             
             return Ok(new { success = true, message = "Herinnering succesvol aangemaakt", reminder });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating reminder");
+            _logger.LogError(ex, "Error creating simple reminder");
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<IActionResult> UpdateReminder(string id, [FromBody] UpdateReminderDto updateReminderDto)
+    public async Task<IActionResult> UpdateSimpleReminder(string id, [FromBody] UpdateSimpleReminderDto updateReminderDto)
     {
         try
         {
-            var existingReminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var existingReminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (existingReminder == null)
             {
@@ -285,37 +231,30 @@ public class RemindersController : ControllerBase
             if (updateReminderDto.Title != null) existingReminder.Title = updateReminderDto.Title;
             if (updateReminderDto.Description != null) existingReminder.Description = updateReminderDto.Description;
             if (updateReminderDto.IsCompleted.HasValue) existingReminder.IsCompleted = updateReminderDto.IsCompleted.Value;
-            if (updateReminderDto.Category != null) existingReminder.Category = updateReminderDto.Category;
-            if (updateReminderDto.Priority.HasValue) existingReminder.Priority = updateReminderDto.Priority.Value;
-            if (updateReminderDto.DueDate.HasValue) existingReminder.DueDate = updateReminderDto.DueDate;
-            if (updateReminderDto.ReminderType != null) existingReminder.ReminderType = updateReminderDto.ReminderType;
-            if (updateReminderDto.ReminderTime != null) existingReminder.ReminderTime = updateReminderDto.ReminderTime;
-            if (updateReminderDto.ReminderStartTime != null) existingReminder.ReminderStartTime = updateReminderDto.ReminderStartTime;
-            if (updateReminderDto.ReminderEndTime != null) existingReminder.ReminderEndTime = updateReminderDto.ReminderEndTime;
-            if (updateReminderDto.IsRecurring.HasValue) existingReminder.IsRecurring = updateReminderDto.IsRecurring.Value;
             if (updateReminderDto.IsActive.HasValue) existingReminder.IsActive = updateReminderDto.IsActive.Value;
-            if (updateReminderDto.Tags != null) existingReminder.Tags = updateReminderDto.Tags;
+            if (updateReminderDto.SpecificTime != null) existingReminder.SpecificTime = updateReminderDto.SpecificTime;
+            if (updateReminderDto.CustomTimeRanges != null) existingReminder.CustomTimeRanges = updateReminderDto.CustomTimeRanges;
             
             existingReminder.UpdatedAt = DateTime.UtcNow;
             
-            await _mongoDbService.UpdateReminderAsync(id, existingReminder);
+            await _mongoDbService.UpdateSimpleReminderAsync(id, existingReminder);
             
             return Ok(existingReminder);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating reminder {ReminderId}", id);
+            _logger.LogError(ex, "Error updating simple reminder {ReminderId}", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPatch("{id}/complete")]
     [Authorize]
-    public async Task<IActionResult> MarkReminderAsComplete(string id)
+    public async Task<IActionResult> MarkSimpleReminderAsComplete(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -331,24 +270,24 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            await _mongoDbService.UpdateReminderCompletionAsync(id, true);
+            await _mongoDbService.UpdateSimpleReminderCompletionAsync(id, true);
             
             return Ok(new { message = "Herinnering gemarkeerd als voltooid" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error marking reminder {ReminderId} as complete", id);
+            _logger.LogError(ex, "Error marking simple reminder {ReminderId} as complete", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPatch("{id}/uncomplete")]
     [Authorize]
-    public async Task<IActionResult> MarkReminderAsIncomplete(string id)
+    public async Task<IActionResult> MarkSimpleReminderAsIncomplete(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -363,24 +302,24 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            await _mongoDbService.UpdateReminderCompletionAsync(id, false);
+            await _mongoDbService.UpdateSimpleReminderCompletionAsync(id, false);
             
             return Ok(new { message = "Herinnering gemarkeerd als niet voltooid" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error marking reminder {ReminderId} as incomplete", id);
+            _logger.LogError(ex, "Error marking simple reminder {ReminderId} as incomplete", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPatch("{id}/activate")]
     [Authorize]
-    public async Task<IActionResult> ActivateReminder(string id)
+    public async Task<IActionResult> ActivateSimpleReminder(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -395,24 +334,24 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            await _mongoDbService.UpdateReminderActiveStatusAsync(id, true);
+            await _mongoDbService.UpdateSimpleReminderActiveStatusAsync(id, true);
             
             return Ok(new { message = "Herinnering geactiveerd" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error activating reminder {ReminderId}", id);
+            _logger.LogError(ex, "Error activating simple reminder {ReminderId}", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
     
     [HttpPatch("{id}/deactivate")]
     [Authorize]
-    public async Task<IActionResult> DeactivateReminder(string id)
+    public async Task<IActionResult> DeactivateSimpleReminder(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -427,72 +366,24 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            await _mongoDbService.UpdateReminderActiveStatusAsync(id, false);
+            await _mongoDbService.UpdateSimpleReminderActiveStatusAsync(id, false);
             
             return Ok(new { message = "Herinnering gedeactiveerd" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deactivating reminder {ReminderId}", id);
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-
-    [HttpPatch("{id}/snooze")]
-    [Authorize]
-    public async Task<IActionResult> SnoozeReminder(string id, [FromBody] SnoozeReminderDto snoozeDto)
-    {
-        try
-        {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
-            
-            if (reminder == null)
-            {
-                return NotFound(new { message = "Herinnering niet gevonden" });
-            }
-            
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isAdmin = User.IsInRole("Admin");
-            
-            if (reminder.UserId != currentUserId && !isAdmin)
-            {
-                return Forbid();
-            }
-            
-            // Calculate snooze time (default 30 minutes if not specified)
-            var snoozeMinutes = snoozeDto?.SnoozeMinutes ?? 30;
-            
-            // Validate that snooze minutes is positive
-            if (snoozeMinutes <= 0)
-            {
-                return BadRequest(new { message = "Snooze tijd moet een positieve waarde zijn" });
-            }
-            
-            var snoozeUntil = DateTime.UtcNow.AddMinutes(snoozeMinutes);
-            
-            // Snooze the reminder
-            await _mongoDbService.SnoozeReminderAsync(id, snoozeUntil);
-            
-            return Ok(new { 
-                message = $"Herinnering uitgesteld voor {snoozeMinutes} minuten", 
-                snoozeUntil = snoozeUntil,
-                snoozeMinutes = snoozeMinutes
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error snoozing reminder {ReminderId}", id);
+            _logger.LogError(ex, "Error deactivating simple reminder {ReminderId}", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
 
     [HttpDelete("{id}")]
     [Authorize]
-    public async Task<IActionResult> DeleteReminder(string id)
+    public async Task<IActionResult> DeleteSimpleReminder(string id)
     {
         try
         {
-            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            var reminder = await _mongoDbService.GetSimpleReminderByIdAsync(id);
             
             if (reminder == null)
             {
@@ -508,14 +399,42 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            await _mongoDbService.DeleteReminderAsync(id);
+            await _mongoDbService.DeleteSimpleReminderAsync(id);
             
             return Ok(new { message = "Herinnering verwijderd" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting reminder {ReminderId}", id);
+            _logger.LogError(ex, "Error deleting simple reminder {ReminderId}", id);
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    // Helper methods
+    private bool IsValidReminderType(string type)
+    {
+        return type == "daily" || type == "custom_time" || type == "specific_time";
+    }
+    
+    private bool ValidateTimeSettings(CreateSimpleReminderDto dto)
+    {
+        switch (dto.Type)
+        {
+            case "daily":
+                // Daily reminders don't need specific time settings
+                return true;
+                
+            case "custom_time":
+                // Custom time reminders need at least one time range
+                return dto.CustomTimeRanges != null && dto.CustomTimeRanges.Count > 0 &&
+                       dto.CustomTimeRanges.All(r => r.StartTime < r.EndTime);
+                
+            case "specific_time":
+                // Specific time reminders need a specific time
+                return dto.SpecificTime.HasValue && dto.SpecificTime.Value > DateTime.UtcNow;
+                
+            default:
+                return false;
         }
     }
 } 
