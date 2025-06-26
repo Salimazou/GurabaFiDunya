@@ -12,7 +12,7 @@ public class MongoDbService
     private readonly IMongoDatabase _database;
     private readonly IMongoCollection<User> _usersCollection;
     private readonly IMongoCollection<Todo> _todosCollection;
-    private readonly IMongoCollection<Reminder> _remindersCollection;
+    private readonly IMongoCollection<SimpleReminder> _simpleRemindersCollection;
     private readonly IMongoCollection<MemorizationPlan> _memorizationPlansCollection;
 
     public MongoDbService(IConfiguration config)
@@ -25,7 +25,7 @@ public class MongoDbService
 
         _usersCollection = _database.GetCollection<User>(config["MongoDB:UsersCollectionName"]);
         _todosCollection = _database.GetCollection<Todo>(config["MongoDB:TodosCollectionName"]);
-        _remindersCollection = _database.GetCollection<Reminder>(config["MongoDB:RemindersCollectionName"] ?? "Reminders");
+        _simpleRemindersCollection = _database.GetCollection<SimpleReminder>(config["MongoDB:SimpleRemindersCollectionName"] ?? "SimpleReminders");
         _memorizationPlansCollection = _database.GetCollection<MemorizationPlan>(config["MongoDB:MemorizationPlansCollectionName"] ?? "memorizationPlans");
     }
 
@@ -129,161 +129,71 @@ public class MongoDbService
     public async Task DeleteTodoAsync(string id) =>
         await _todosCollection.DeleteOneAsync(x => x.Id == id);
         
-    // Reminders
-    public async Task<List<Reminder>> GetAllRemindersAsync() 
-    {
-        var reminders = await _remindersCollection.Find(_ => true).ToListAsync();
-        var userIds = reminders.Select(r => r.UserId).Distinct().ToList();
+    // Simple Reminders
+    public async Task<List<SimpleReminder>> GetAllSimpleRemindersAsync() =>
+        await _simpleRemindersCollection.Find(_ => true).ToListAsync();
         
-        // Get all users involved in these reminders in a single query
-        var users = await _usersCollection
-            .Find(u => userIds.Contains(u.Id))
-            .ToListAsync();
-        
-        // Create a lookup dictionary for faster access
-        var userLookup = users.ToDictionary(u => u.Id, u => u);
+    public async Task<List<SimpleReminder>> GetSimpleRemindersByUserIdAsync(string userId) =>
+        await _simpleRemindersCollection.Find(x => x.UserId == userId).ToListAsync();
+    
+    public async Task<List<SimpleReminder>> GetActiveSimpleRemindersByUserIdAsync(string userId) =>
+        await _simpleRemindersCollection.Find(x => x.UserId == userId && x.IsActive == true).ToListAsync();
+    
+    public async Task<List<SimpleReminder>> GetCompletedSimpleRemindersByUserIdAsync(string userId) =>
+        await _simpleRemindersCollection.Find(x => x.UserId == userId && x.IsCompleted == true).ToListAsync();
 
-        // Add username to each reminder
-        foreach (var reminder in reminders)
-        {
-            if (userLookup.TryGetValue(reminder.UserId, out var user))
-            {
-                reminder.Username = user.Username ?? user.Email;
-            }
-            else
-            {
-                reminder.Username = "Unknown User";
-            }
-        }
-        
-        return reminders;
-    }
-        
-    public async Task<List<Reminder>> GetRemindersByUserIdAsync(string userId)
+    public async Task<SimpleReminder?> GetSimpleReminderByIdAsync(string id) =>
+        await _simpleRemindersCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
+
+    public async Task CreateSimpleReminderAsync(SimpleReminder reminder)
     {
-        var reminders = await _remindersCollection.Find(x => x.UserId == userId).ToListAsync();
-        
-        // Get the user
-        var user = await GetUserByIdAsync(userId);
-        
-        // Set username on all reminders
-        if (user != null)
-        {
-            foreach (var reminder in reminders)
-            {
-                reminder.Username = user.Username ?? user.Email;
-            }
-        }
-        
-        return reminders;
-    }
-    
-    public async Task<List<Reminder>> GetActiveRemindersByUserIdAsync(string userId) =>
-        await _remindersCollection.Find(x => x.UserId == userId && x.IsActive == true).ToListAsync();
-    
-    public async Task<List<Reminder>> GetCompletedRemindersByUserIdAsync(string userId) =>
-        await _remindersCollection.Find(x => x.UserId == userId && x.IsCompleted == true).ToListAsync();
-    
-    public async Task<List<Reminder>> GetHighPriorityRemindersByUserIdAsync(string userId) =>
-        await _remindersCollection.Find(x => x.UserId == userId && x.Priority == 2 && x.IsActive == true).ToListAsync();
-    
-    public async Task<List<Reminder>> GetTodayRemindersByUserIdAsync(string userId)
-    {
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
-        
-        return await _remindersCollection.Find(x => 
-            x.UserId == userId && 
-            x.IsActive == true &&
-            (x.DueDate >= today && x.DueDate < tomorrow)).ToListAsync();
+        reminder.CreatedAt = DateTime.UtcNow;
+        reminder.UpdatedAt = DateTime.UtcNow;
+        await _simpleRemindersCollection.InsertOneAsync(reminder);
     }
 
-    public async Task<Reminder?> GetReminderByIdAsync(string id) =>
-        await _remindersCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
-
-    public async Task CreateReminderAsync(Reminder reminder) =>
-        await _remindersCollection.InsertOneAsync(reminder);
-
-    public async Task UpdateReminderAsync(string id, Reminder reminder) =>
-        await _remindersCollection.ReplaceOneAsync(x => x.Id == id, reminder);
+    public async Task UpdateSimpleReminderAsync(string id, SimpleReminder reminder)
+    {
+        reminder.UpdatedAt = DateTime.UtcNow;
+        await _simpleRemindersCollection.ReplaceOneAsync(x => x.Id == id, reminder);
+    }
         
-    public async Task UpdateReminderCompletionAsync(string id, bool isCompleted) =>
-        await _remindersCollection.UpdateOneAsync(
+    public async Task UpdateSimpleReminderCompletionAsync(string id, bool isCompleted) =>
+        await _simpleRemindersCollection.UpdateOneAsync(
             x => x.Id == id,
-            Builders<Reminder>.Update
+            Builders<SimpleReminder>.Update
                 .Set(x => x.IsCompleted, isCompleted)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow));
                 
-    public async Task UpdateReminderActiveStatusAsync(string id, bool isActive) =>
-        await _remindersCollection.UpdateOneAsync(
+    public async Task UpdateSimpleReminderActiveStatusAsync(string id, bool isActive) =>
+        await _simpleRemindersCollection.UpdateOneAsync(
             x => x.Id == id,
-            Builders<Reminder>.Update
+            Builders<SimpleReminder>.Update
                 .Set(x => x.IsActive, isActive)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow));
-                
-    public async Task IncrementReminderCountAsync(string id) =>
-        await _remindersCollection.UpdateOneAsync(
-            x => x.Id == id,
-            Builders<Reminder>.Update
-                .Inc(x => x.ReminderCount, 1)
-                .Set(x => x.LastReminderSent, DateTime.UtcNow)
-                .Set(x => x.UpdatedAt, DateTime.UtcNow));
 
-    public async Task SnoozeReminderAsync(string id, DateTime snoozeUntil) =>
-        await _remindersCollection.UpdateOneAsync(
-            x => x.Id == id,
-            Builders<Reminder>.Update
-                .Set(x => x.SnoozeUntil, snoozeUntil)
-                .Set(x => x.UpdatedAt, DateTime.UtcNow));
-
-    public async Task ClearReminderSnoozeAsync(string id) =>
-        await _remindersCollection.UpdateOneAsync(
-            x => x.Id == id,
-            Builders<Reminder>.Update
-                .Unset(x => x.SnoozeUntil)
-                .Set(x => x.UpdatedAt, DateTime.UtcNow));
-
-    public async Task<List<Reminder>> GetDueRemindersAsync(DateTime now)
+    public async Task DeleteSimpleReminderAsync(string id) =>
+        await _simpleRemindersCollection.DeleteOneAsync(x => x.Id == id);
+        
+    public async Task<SimpleReminderStatsDto> GetSimpleReminderStatsAsync(string userId)
     {
-        // Get active reminders that are either:
-        // 1. Not snoozed (SnoozeUntil is null or in the past)
-        // 2. Due today or have no due date
-        var today = now.Date;
-        var tomorrow = today.AddDays(1);
-        
-        return await _remindersCollection.Find(x => 
-            x.IsActive == true && 
-            x.IsCompleted == false &&
-            (x.SnoozeUntil == null || x.SnoozeUntil <= now) &&
-            (x.DueDate == null || (x.DueDate >= today && x.DueDate < tomorrow))).ToListAsync();
-    }
-
-    public async Task DeleteReminderAsync(string id) =>
-        await _remindersCollection.DeleteOneAsync(x => x.Id == id);
-        
-    public async Task<ReminderStatsDto> GetReminderStatsAsync(string userId)
-    {
-        var totalReminders = await _remindersCollection.CountDocumentsAsync(x => x.UserId == userId);
-        var completedReminders = await _remindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.IsCompleted == true);
-        var activeReminders = await _remindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.IsActive == true);
-        var highPriorityReminders = await _remindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.Priority == 2 && x.IsActive == true);
-        
-        var today = DateTime.UtcNow.Date;
-        var tomorrow = today.AddDays(1);
-        var todayReminders = await _remindersCollection.CountDocumentsAsync(x => 
-            x.UserId == userId && 
-            x.IsActive == true &&
-            (x.DueDate >= today && x.DueDate < tomorrow));
+        var totalReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId);
+        var completedReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.IsCompleted == true);
+        var activeReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.IsActive == true);
+        var dailyReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.Type == "daily");
+        var customTimeReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.Type == "custom_time");
+        var specificTimeReminders = await _simpleRemindersCollection.CountDocumentsAsync(x => x.UserId == userId && x.Type == "specific_time");
         
         var completionRate = totalReminders > 0 ? (double)completedReminders / totalReminders * 100 : 0;
         
-        return new ReminderStatsDto
+        return new SimpleReminderStatsDto
         {
             TotalReminders = (int)totalReminders,
             CompletedReminders = (int)completedReminders,
             ActiveReminders = (int)activeReminders,
-            HighPriorityReminders = (int)highPriorityReminders,
-            TodayReminders = (int)todayReminders,
+            DailyReminders = (int)dailyReminders,
+            CustomTimeReminders = (int)customTimeReminders,
+            SpecificTimeReminders = (int)specificTimeReminders,
             CompletionRate = Math.Round(completionRate, 2)
         };
     }
