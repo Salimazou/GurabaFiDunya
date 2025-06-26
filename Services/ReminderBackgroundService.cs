@@ -14,7 +14,7 @@ namespace server.Services
         private readonly MongoDbService _mongoDbService;
         private Timer? _timer;
         private readonly SemaphoreSlim _processingSemaphore = new SemaphoreSlim(1, 1);
-        private volatile bool _isProcessing = false;
+        private long _isProcessingFlag = 0;
 
         public ReminderBackgroundService(ILogger<ReminderBackgroundService> logger, MongoDbService mongoDbService)
         {
@@ -34,8 +34,8 @@ namespace server.Services
 
         private void DoWork(object? state)
         {
-            // Prevent concurrent executions
-            if (_isProcessing)
+            // Use atomic operation to prevent race condition
+            if (Interlocked.CompareExchange(ref _isProcessingFlag, 1, 0) != 0)
             {
                 _logger.LogWarning("Previous reminder processing still in progress, skipping this cycle");
                 return;
@@ -46,7 +46,6 @@ namespace server.Services
             {
                 try
                 {
-                    _isProcessing = true;
                     await ProcessDueReminders();
                 }
                 catch (Exception ex)
@@ -55,7 +54,8 @@ namespace server.Services
                 }
                 finally
                 {
-                    _isProcessing = false;
+                    // Reset the flag using atomic operation
+                    Interlocked.Exchange(ref _isProcessingFlag, 0);
                 }
             });
         }
@@ -140,6 +140,9 @@ namespace server.Services
                 // Update reminder stats
                 await _mongoDbService.IncrementReminderCountAsync(reminder.Id);
                 
+                // Update LastReminderSent to prevent duplicate notifications
+                await _mongoDbService.UpdateReminderLastSentAsync(reminder.Id, now);
+                
                 // Clear snooze if it was snoozed
                 if (reminder.SnoozeUntil.HasValue)
                 {
@@ -214,7 +217,7 @@ namespace server.Services
             _timer?.Change(Timeout.Infinite, 0);
             
             // Wait for any ongoing processing to complete
-            if (_isProcessing)
+            if (Interlocked.Read(ref _isProcessingFlag) == 1)
             {
                 _logger.LogInformation("Waiting for ongoing reminder processing to complete...");
                 var timeout = TimeSpan.FromSeconds(30);

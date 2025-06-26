@@ -229,6 +229,13 @@ public class MongoDbService
                 .Set(x => x.LastReminderSent, DateTime.UtcNow)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow));
 
+    public async Task UpdateReminderLastSentAsync(string id, DateTime lastSent) =>
+        await _remindersCollection.UpdateOneAsync(
+            x => x.Id == id,
+            Builders<Reminder>.Update
+                .Set(x => x.LastReminderSent, lastSent)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow));
+
     public async Task SnoozeReminderAsync(string id, DateTime snoozeUntil) =>
         await _remindersCollection.UpdateOneAsync(
             x => x.Id == id,
