@@ -168,7 +168,7 @@ namespace server.Services
                 }
             }
 
-            // For time range reminders
+            // For time range reminders (including across midnight)
             if (reminder.ReminderType == "time_range" && 
                 !string.IsNullOrEmpty(reminder.ReminderStartTime) && 
                 !string.IsNullOrEmpty(reminder.ReminderEndTime))
@@ -177,17 +177,40 @@ namespace server.Services
                     TimeSpan.TryParse(reminder.ReminderEndTime, out var endTime))
                 {
                     var currentTime = now.TimeOfDay;
-                    return currentTime >= startTime && currentTime <= endTime;
+                    if (startTime <= endTime)
+                    {
+                        // Normaal bereik (bijv. 11:00-23:00)
+                        return currentTime >= startTime && currentTime <= endTime;
+                    }
+                    else
+                    {
+                        // Over middernacht (bijv. 22:00-02:00)
+                        return currentTime >= startTime || currentTime <= endTime;
+                    }
                 }
             }
 
-            // For daily reminders, always allow
+            // For daily reminders, only allow once per day
             if (reminder.ReminderType == "daily")
+            {
+                if (reminder.LastReminderSent.HasValue)
+                {
+                    var lastSent = reminder.LastReminderSent.Value.ToUniversalTime().Date;
+                    var today = now.Date;
+                    return lastSent < today;
+                }
+                return true;
+            }
+
+            // For unknown or null types, allow processing (fallback)
+            if (string.IsNullOrEmpty(reminder.ReminderType))
             {
                 return true;
             }
 
-            return false;
+            // For unrecognized types, log and allow
+            _logger.LogWarning($"Unrecognized ReminderType: {reminder.ReminderType} for reminder {reminder.Id}");
+            return true;
         }
 
         private async Task SendReminderNotification(Reminder reminder)
