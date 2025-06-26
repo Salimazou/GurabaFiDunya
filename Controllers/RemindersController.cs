@@ -440,7 +440,7 @@ public class RemindersController : ControllerBase
 
     [HttpPatch("{id}/snooze")]
     [Authorize]
-    public async Task<IActionResult> SnoozeReminder(string id)
+    public async Task<IActionResult> SnoozeReminder(string id, [FromBody] SnoozeReminderDto snoozeDto)
     {
         try
         {
@@ -459,16 +459,21 @@ public class RemindersController : ControllerBase
                 return Forbid();
             }
             
-            // Reset reminder to come back later
-            reminder.IsCompleted = false;
-            reminder.IsActive = true;
-            reminder.LastReminderSent = DateTime.UtcNow;
-            reminder.ReminderCount = (reminder.ReminderCount ?? 0) + 1;
-            reminder.UpdatedAt = DateTime.UtcNow;
+            // Calculate snooze time (default 30 minutes if not specified)
+            var snoozeMinutes = snoozeDto?.SnoozeMinutes ?? 30;
+            var snoozeUntil = DateTime.UtcNow.AddMinutes(snoozeMinutes);
             
-            await _mongoDbService.UpdateReminderAsync(id, reminder);
+            // Snooze the reminder
+            await _mongoDbService.SnoozeReminderAsync(id, snoozeUntil);
             
-            return Ok(new { message = "Herinnering uitgesteld - komt later terug" });
+            // Increment reminder count (this represents a snooze action, not a sent reminder)
+            await _mongoDbService.IncrementReminderCountAsync(id);
+            
+            return Ok(new { 
+                message = $"Herinnering uitgesteld voor {snoozeMinutes} minuten", 
+                snoozeUntil = snoozeUntil,
+                snoozeMinutes = snoozeMinutes
+            });
         }
         catch (Exception ex)
         {
