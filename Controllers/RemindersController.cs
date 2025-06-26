@@ -466,9 +466,6 @@ public class RemindersController : ControllerBase
             // Snooze the reminder
             await _mongoDbService.SnoozeReminderAsync(id, snoozeUntil);
             
-            // Increment reminder count (this represents a snooze action, not a sent reminder)
-            await _mongoDbService.IncrementReminderCountAsync(id);
-            
             return Ok(new { 
                 message = $"Herinnering uitgesteld voor {snoozeMinutes} minuten", 
                 snoozeUntil = snoozeUntil,
