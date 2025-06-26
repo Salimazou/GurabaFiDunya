@@ -137,11 +137,8 @@ namespace server.Services
                 // Send notification (in a real app, this would integrate with a notification service)
                 await SendReminderNotification(reminder);
                 
-                // Update reminder stats
+                // Update reminder stats (this also sets LastReminderSent to DateTime.UtcNow)
                 await _mongoDbService.IncrementReminderCountAsync(reminder.Id);
-                
-                // Update LastReminderSent to prevent duplicate notifications
-                await _mongoDbService.UpdateReminderLastSentAsync(reminder.Id, now);
                 
                 // Clear snooze if it was snoozed
                 if (reminder.SnoozeUntil.HasValue)
