@@ -438,6 +438,45 @@ public class RemindersController : ControllerBase
         }
     }
 
+    [HttpPatch("{id}/snooze")]
+    [Authorize]
+    public async Task<IActionResult> SnoozeReminder(string id)
+    {
+        try
+        {
+            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            
+            if (reminder == null)
+            {
+                return NotFound(new { message = "Herinnering niet gevonden" });
+            }
+            
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (reminder.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
+            }
+            
+            // Reset reminder to come back later
+            reminder.IsCompleted = false;
+            reminder.IsActive = true;
+            reminder.LastReminderSent = DateTime.UtcNow;
+            reminder.ReminderCount = (reminder.ReminderCount ?? 0) + 1;
+            reminder.UpdatedAt = DateTime.UtcNow;
+            
+            await _mongoDbService.UpdateReminderAsync(id, reminder);
+            
+            return Ok(new { message = "Herinnering uitgesteld - komt later terug" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error snoozing reminder {ReminderId}", id);
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> DeleteReminder(string id)
