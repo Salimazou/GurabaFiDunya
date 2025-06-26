@@ -229,6 +229,35 @@ public class MongoDbService
                 .Set(x => x.LastReminderSent, DateTime.UtcNow)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow));
 
+    public async Task SnoozeReminderAsync(string id, DateTime snoozeUntil) =>
+        await _remindersCollection.UpdateOneAsync(
+            x => x.Id == id,
+            Builders<Reminder>.Update
+                .Set(x => x.SnoozeUntil, snoozeUntil)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow));
+
+    public async Task ClearReminderSnoozeAsync(string id) =>
+        await _remindersCollection.UpdateOneAsync(
+            x => x.Id == id,
+            Builders<Reminder>.Update
+                .Unset(x => x.SnoozeUntil)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow));
+
+    public async Task<List<Reminder>> GetDueRemindersAsync(DateTime now)
+    {
+        // Get active reminders that are either:
+        // 1. Not snoozed (SnoozeUntil is null or in the past)
+        // 2. Due today or have no due date
+        var today = now.Date;
+        var tomorrow = today.AddDays(1);
+        
+        return await _remindersCollection.Find(x => 
+            x.IsActive == true && 
+            x.IsCompleted == false &&
+            (x.SnoozeUntil == null || x.SnoozeUntil <= now) &&
+            (x.DueDate == null || (x.DueDate >= today && x.DueDate < tomorrow))).ToListAsync();
+    }
+
     public async Task DeleteReminderAsync(string id) =>
         await _remindersCollection.DeleteOneAsync(x => x.Id == id);
         

@@ -438,6 +438,54 @@ public class RemindersController : ControllerBase
         }
     }
 
+    [HttpPatch("{id}/snooze")]
+    [Authorize]
+    public async Task<IActionResult> SnoozeReminder(string id, [FromBody] SnoozeReminderDto snoozeDto)
+    {
+        try
+        {
+            var reminder = await _mongoDbService.GetReminderByIdAsync(id);
+            
+            if (reminder == null)
+            {
+                return NotFound(new { message = "Herinnering niet gevonden" });
+            }
+            
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isAdmin = User.IsInRole("Admin");
+            
+            if (reminder.UserId != currentUserId && !isAdmin)
+            {
+                return Forbid();
+            }
+            
+            // Calculate snooze time (default 30 minutes if not specified)
+            var snoozeMinutes = snoozeDto?.SnoozeMinutes ?? 30;
+            
+            // Validate that snooze minutes is positive
+            if (snoozeMinutes <= 0)
+            {
+                return BadRequest(new { message = "Snooze tijd moet een positieve waarde zijn" });
+            }
+            
+            var snoozeUntil = DateTime.UtcNow.AddMinutes(snoozeMinutes);
+            
+            // Snooze the reminder
+            await _mongoDbService.SnoozeReminderAsync(id, snoozeUntil);
+            
+            return Ok(new { 
+                message = $"Herinnering uitgesteld voor {snoozeMinutes} minuten", 
+                snoozeUntil = snoozeUntil,
+                snoozeMinutes = snoozeMinutes
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error snoozing reminder {ReminderId}", id);
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> DeleteReminder(string id)

@@ -67,6 +67,9 @@ public class Reminder
     [BsonElement("isActive")]
     public bool IsActive { get; set; } = true;
     
+    [BsonElement("snoozeUntil")]
+    public DateTime? SnoozeUntil { get; set; }
+    
     [BsonElement("tags")]
     public List<string>? Tags { get; set; } = new List<string>();
 }
@@ -132,4 +135,10 @@ public enum PriorityLevel
     Low = 0,
     Medium = 1,
     High = 2
+}
+
+public class SnoozeReminderDto
+{
+    [Required(ErrorMessage = "Snooze duration is required")]
+    public int SnoozeMinutes { get; set; } = 30; // Default 30 minutes
 } 
