@@ -210,22 +210,34 @@ namespace server.Services
         {
             _logger.LogInformation("Reminder Background Service is stopping.");
             
-            // Stop the timer
+            // Stop the timer first to prevent new processing from starting
             _timer?.Change(Timeout.Infinite, 0);
             
             // Wait for any ongoing processing to complete
-            if (Interlocked.Read(ref _isProcessingFlag) == 1)
+            // Use a more robust approach that doesn't rely on flag checking
+            _logger.LogInformation("Waiting for ongoing reminder processing to complete...");
+            var timeout = TimeSpan.FromSeconds(30);
+            
+            try
             {
-                _logger.LogInformation("Waiting for ongoing reminder processing to complete...");
-                var timeout = TimeSpan.FromSeconds(30);
+                // Try to acquire the semaphore to ensure no processing is happening
                 if (await _processingSemaphore.WaitAsync(timeout, cancellationToken))
                 {
+                    _logger.LogInformation("Successfully acquired processing semaphore, no ongoing processing");
                     _processingSemaphore.Release();
                 }
                 else
                 {
                     _logger.LogWarning("Timeout waiting for reminder processing to complete");
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Stop operation was cancelled while waiting for processing to complete");
+            }
+            catch (ObjectDisposedException)
+            {
+                _logger.LogWarning("Processing semaphore was disposed while waiting for processing to complete");
             }
             
             await base.StopAsync(cancellationToken);
