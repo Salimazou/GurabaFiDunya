@@ -10,18 +10,10 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHttpClient();
 
 // Register services
 builder.Services.AddSingleton<MongoDbService>();
 builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<QuranTextService>();
-builder.Services.AddScoped<QuranDatasetDownloader>();
-builder.Services.AddSingleton<WhisperRecognitionService>();
-builder.Services.AddSingleton<TarteelDatasetService>();
-
-// Register HttpClient for Tarteel service
-builder.Services.AddHttpClient<TarteelDatasetService>();
 
 // Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -63,18 +55,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-// Initialize services
-var quranService = app.Services.GetRequiredService<QuranTextService>();
-var whisperService = app.Services.GetRequiredService<WhisperRecognitionService>();
-var tarteelService = app.Services.GetRequiredService<TarteelDatasetService>();
-
-await Task.Run(async () =>
-{
-    await quranService.InitializeAsync();
-    await whisperService.InitializeAsync();
-    await tarteelService.InitializeAsync();
-});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

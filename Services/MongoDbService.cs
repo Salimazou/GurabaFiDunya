@@ -14,7 +14,6 @@ public class MongoDbService
     private readonly IMongoCollection<Todo> _todosCollection;
     private readonly IMongoCollection<Reminder> _remindersCollection;
     private readonly IMongoCollection<MemorizationPlan> _memorizationPlansCollection;
-    private readonly IMongoCollection<RecitationSession> _recitationSessionsCollection;
 
     public MongoDbService(IConfiguration config)
     {
@@ -28,7 +27,6 @@ public class MongoDbService
         _todosCollection = _database.GetCollection<Todo>(config["MongoDB:TodosCollectionName"]);
         _remindersCollection = _database.GetCollection<Reminder>(config["MongoDB:RemindersCollectionName"] ?? "Reminders");
         _memorizationPlansCollection = _database.GetCollection<MemorizationPlan>(config["MongoDB:MemorizationPlansCollectionName"] ?? "memorizationPlans");
-        _recitationSessionsCollection = _database.GetCollection<RecitationSession>("RecitationSessions");
     }
 
     public async Task<bool> PingAsync()
@@ -303,23 +301,4 @@ public class MongoDbService
         
     public async Task DeleteMemorizationPlansByUserIdAsync(string userId) =>
         await _memorizationPlansCollection.DeleteManyAsync(x => x.UserId == userId);
-
-    // Recitation Sessions
-    public async Task<List<RecitationSession>> GetRecitationSessionsByUserIdAsync(string userId) =>
-        await _recitationSessionsCollection.Find(x => x.UserId == userId).ToListAsync();
-
-    public async Task<RecitationSession?> GetRecitationSessionAsync(string sessionId) =>
-        await _recitationSessionsCollection.Find(x => x.Id == sessionId).FirstOrDefaultAsync();
-
-    public async Task CreateRecitationSessionAsync(RecitationSession session) =>
-        await _recitationSessionsCollection.InsertOneAsync(session);
-
-    public async Task UpdateRecitationSessionAsync(RecitationSession session) =>
-        await _recitationSessionsCollection.ReplaceOneAsync(x => x.Id == session.Id, session);
-
-    public async Task DeleteRecitationSessionAsync(string sessionId) =>
-        await _recitationSessionsCollection.DeleteOneAsync(x => x.Id == sessionId);
-
-    public async Task<List<RecitationSession>> GetActiveRecitationSessionsByUserIdAsync(string userId) =>
-        await _recitationSessionsCollection.Find(x => x.UserId == userId && x.IsActive == true).ToListAsync();
 }
