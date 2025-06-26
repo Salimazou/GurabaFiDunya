@@ -461,6 +461,13 @@ public class RemindersController : ControllerBase
             
             // Calculate snooze time (default 30 minutes if not specified)
             var snoozeMinutes = snoozeDto?.SnoozeMinutes ?? 30;
+            
+            // Validate that snooze minutes is positive
+            if (snoozeMinutes <= 0)
+            {
+                return BadRequest(new { message = "Snooze tijd moet een positieve waarde zijn" });
+            }
+            
             var snoozeUntil = DateTime.UtcNow.AddMinutes(snoozeMinutes);
             
             // Snooze the reminder
