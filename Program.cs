@@ -2,9 +2,24 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using server.Middleware;
 using server.Services;
+using server.Migration;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Check for migration command
+if (args.Length > 0 && args[0] == "migrate-users")
+{
+    // Build minimal services for migration
+    builder.Services.AddSingleton<MongoDbService>();
+    var migrationApp = builder.Build();
+    
+    var mongoService = migrationApp.Services.GetRequiredService<MongoDbService>();
+    var migration = new UserMigration(mongoService);
+    
+    await migration.MigrateUsersAsync();
+    return;
+}
 
 // Add services to the container.
 builder.Services.AddControllers();

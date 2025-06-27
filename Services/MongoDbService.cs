@@ -60,6 +60,9 @@ public class MongoDbService
     public async Task UpdateUserAsync(string id, User user) =>
         await _usersCollection.ReplaceOneAsync(x => x.Id == id, user);
 
+    public async Task UpdateUserAsync(string id, UpdateDefinition<User> update) =>
+        await _usersCollection.UpdateOneAsync(x => x.Id == id, update);
+
     public async Task DeleteUserAsync(string id) =>
         await _usersCollection.DeleteOneAsync(x => x.Id == id);
         
