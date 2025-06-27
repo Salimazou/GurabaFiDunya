@@ -28,7 +28,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.ASCII.GetBytes(
-                    builder.Configuration["Jwt:Secret"] ?? 
+                    builder.Configuration["Jwt:Key"] ?? 
                     "this_is_a_default_key_for_development_only_should_be_changed_in_production"
                 )
             ),
