@@ -41,4 +41,11 @@ public class User
     
     [BsonElement("favoriteReciters")]
     public List<string> FavoriteReciters { get; set; } = new List<string>();
+    
+    // Refresh token fields
+    [BsonElement("refreshToken")]
+    public string? RefreshToken { get; set; }
+    
+    [BsonElement("refreshTokenExpiryTime")]
+    public DateTime? RefreshTokenExpiryTime { get; set; }
 }

@@ -63,6 +63,40 @@ public class MongoDbService
     public async Task DeleteUserAsync(string id) =>
         await _usersCollection.DeleteOneAsync(x => x.Id == id);
         
+    // Refresh Token Methods
+    public async Task StoreRefreshTokenAsync(string userId, string refreshToken, DateTime expiryTime)
+    {
+        var update = Builders<User>.Update
+            .Set(u => u.RefreshToken, refreshToken)
+            .Set(u => u.RefreshTokenExpiryTime, expiryTime)
+            .Set(u => u.UpdatedAt, DateTime.UtcNow);
+            
+        await _usersCollection.UpdateOneAsync(u => u.Id == userId, update);
+    }
+    
+    public async Task<User?> GetUserByRefreshTokenAsync(string refreshToken)
+    {
+        return await _usersCollection.Find(u => 
+            u.RefreshToken == refreshToken && 
+            u.RefreshTokenExpiryTime > DateTime.UtcNow
+        ).FirstOrDefaultAsync();
+    }
+    
+    public async Task RevokeRefreshTokenAsync(string userId)
+    {
+        var update = Builders<User>.Update
+            .Unset(u => u.RefreshToken)
+            .Unset(u => u.RefreshTokenExpiryTime)
+            .Set(u => u.UpdatedAt, DateTime.UtcNow);
+            
+        await _usersCollection.UpdateOneAsync(u => u.Id == userId, update);
+    }
+    
+    public async Task RevokeAllRefreshTokensForUserAsync(string userId)
+    {
+        await RevokeRefreshTokenAsync(userId);
+    }
+        
     // Todos
     public async Task<List<Todo>> GetAllTodosAsync() 
     {
