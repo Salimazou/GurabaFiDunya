@@ -22,7 +22,12 @@ public class RemindersController : ControllerBase
 
     private string GetUserId()
     {
-        return User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new UnauthorizedAccessException("User ID claim not found in token");
+        }
+        return userId;
     }
 
     // GET /api/reminders

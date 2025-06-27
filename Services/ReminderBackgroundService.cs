@@ -8,6 +8,7 @@ public class ReminderBackgroundService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ReminderBackgroundService> _logger;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(10);
+    private DateTime _lastResetDate = DateTime.MinValue;
 
     public ReminderBackgroundService(IServiceProvider serviceProvider, ILogger<ReminderBackgroundService> logger)
     {
@@ -41,7 +42,7 @@ public class ReminderBackgroundService : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var mongoDbService = scope.ServiceProvider.GetRequiredService<MongoDbService>();
-        var pushNotificationService = scope.ServiceProvider.GetService<PushNotificationService>();
+        var pushNotificationService = scope.ServiceProvider.GetService<IPushNotificationService>();
 
         try
         {
@@ -91,12 +92,14 @@ public class ReminderBackgroundService : BackgroundService
         try
         {
             var now = DateTime.UtcNow;
+            var today = now.Date;
             
-            // Only reset once per day around midnight UTC
-            if (now.Hour == 0 && now.Minute < 10)
+            // Only reset once per day and ensure we haven't already reset today
+            if (today > _lastResetDate)
             {
                 await mongoDbService.ResetDailyReminderCompletionsAsync();
-                _logger.LogInformation("Reset daily reminder completions for new day");
+                _lastResetDate = today;
+                _logger.LogInformation("Reset daily reminder completions for new day: {Date}", today);
             }
         }
         catch (Exception ex)

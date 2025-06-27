@@ -221,14 +221,20 @@ public class MongoDbService
         var now = DateTime.UtcNow;
         var today = now.Date;
         
+        // First, get the current reminder state to avoid race conditions
+        var reminder = await GetReminderByIdAsync(id);
+        if (reminder == null)
+        {
+            throw new InvalidOperationException($"Reminder with ID {id} not found");
+        }
+        
         var updateBuilder = Builders<Reminder>.Update
             .Set(x => x.LastInteractionType, action.ToString())
             .Set(x => x.LastInteractionTime, now)
             .Set(x => x.UpdatedAt, now);
             
         // Reset daily counter if it's a new day
-        var reminder = await GetReminderByIdAsync(id);
-        if (reminder != null && reminder.LastReminderDate != today)
+        if (reminder.LastReminderDate != today)
         {
             updateBuilder = updateBuilder.Set(x => x.TimesRemindedToday, 0);
         }
@@ -263,7 +269,13 @@ public class MongoDbService
                 break;
         }
         
-        await _remindersCollection.UpdateOneAsync(x => x.Id == id, updateBuilder);
+        var result = await _remindersCollection.UpdateOneAsync(x => x.Id == id, updateBuilder);
+        
+        // Verify the update was successful
+        if (result.ModifiedCount == 0)
+        {
+            throw new InvalidOperationException($"Failed to update reminder {id}. Reminder may have been modified by another operation.");
+        }
     }
     
     private int CalculateSmartSnooze(Reminder? reminder, DateTime now)
@@ -272,7 +284,27 @@ public class MongoDbService
         
         var currentTime = now.TimeOfDay;
         var windowDuration = reminder.EndTime - reminder.StartTime;
+        
+        // Handle edge case where start and end time are the same
+        if (windowDuration.TotalMinutes <= 0)
+        {
+            return 15; // Default snooze for zero-duration windows
+        }
+        
         var timeIntoWindow = currentTime - reminder.StartTime;
+        
+        // Handle case where current time is before the start time
+        if (timeIntoWindow.TotalMinutes < 0)
+        {
+            return 30; // Longer snooze if we're before the window
+        }
+        
+        // Handle case where current time is after the end time
+        if (timeIntoWindow.TotalMinutes > windowDuration.TotalMinutes)
+        {
+            return 5; // Shorter snooze if we're past the window
+        }
+        
         var progressInWindow = timeIntoWindow.TotalMinutes / windowDuration.TotalMinutes;
         
         // Early in window: longer snooze (30 min), later in window: shorter snooze (5 min)
