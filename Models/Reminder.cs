@@ -1,7 +1,42 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace server.Models;
+
+// Custom TimeSpan converter for JSON serialization
+public class TimeSpanConverter : JsonConverter<TimeSpan>
+{
+    public override TimeSpan Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        var value = reader.GetString();
+        if (string.IsNullOrEmpty(value))
+            return TimeSpan.Zero;
+
+        // Handle HH:mm:ss format from Swift
+        if (TimeSpan.TryParse(value, out var timeSpan))
+            return timeSpan;
+
+        // If that fails, try to parse as HH:mm:ss manually
+        var parts = value.Split(':');
+        if (parts.Length >= 2)
+        {
+            var hours = int.TryParse(parts[0], out var h) ? h : 0;
+            var minutes = int.TryParse(parts[1], out var m) ? m : 0;
+            var seconds = parts.Length > 2 && int.TryParse(parts[2], out var s) ? s : 0;
+            
+            return new TimeSpan(hours, minutes, seconds);
+        }
+
+        return TimeSpan.Zero;
+    }
+
+    public override void Write(Utf8JsonWriter writer, TimeSpan value, JsonSerializerOptions options)
+    {
+        writer.WriteStringValue(value.ToString(@"hh\:mm\:ss"));
+    }
+}
 
 public class Reminder
 {
@@ -13,8 +48,11 @@ public class Reminder
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     
-    // Time window
+    // Time window with custom converter
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan StartTime { get; set; } // e.g., 11:00
+    
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan EndTime { get; set; }   // e.g., 23:00
     
     // Frequency and scheduling
@@ -105,8 +143,13 @@ public class CreateReminderRequest
 {
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
+    
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan StartTime { get; set; }
+    
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan EndTime { get; set; }
+    
     public ReminderFrequency Frequency { get; set; }
     public ReminderType Type { get; set; }
     public int MaxRemindersPerDay { get; set; } = 3;
@@ -116,8 +159,13 @@ public class UpdateReminderRequest
 {
     public string? Title { get; set; }
     public string? Description { get; set; }
+    
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan? StartTime { get; set; }
+    
+    [JsonConverter(typeof(TimeSpanConverter))]
     public TimeSpan? EndTime { get; set; }
+    
     public ReminderFrequency? Frequency { get; set; }
     public ReminderType? Type { get; set; }
     public bool? IsActive { get; set; }
