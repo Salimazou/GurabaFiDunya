@@ -7,8 +7,8 @@ EXPOSE 80
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app/publish
+RUN dotnet restore server.csproj
+RUN dotnet publish server.csproj -c Release -o /app/publish
 
 # Definieer de runtime en stel de poort in naar 80
 FROM base AS final

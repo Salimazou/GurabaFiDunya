@@ -2,24 +2,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using server.Middleware;
 using server.Services;
-using server.Migration;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Check for migration command
-if (args.Length > 0 && args[0] == "migrate-users")
-{
-    // Build minimal services for migration
-    builder.Services.AddSingleton<MongoDbService>();
-    var migrationApp = builder.Build();
-    
-    var mongoService = migrationApp.Services.GetRequiredService<MongoDbService>();
-    var migration = new UserMigration(mongoService);
-    
-    await migration.MigrateUsersAsync();
-    return;
-}
 
 // Add services to the container.
 builder.Services.AddControllers();
@@ -43,14 +28,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.ASCII.GetBytes(
-                    builder.Configuration["Jwt:Key"] ?? 
-                    throw new InvalidOperationException("JWT Key not configured")
+                    builder.Configuration["Jwt:Secret"] ?? 
+                    "this_is_a_default_key_for_development_only_should_be_changed_in_production"
                 )
             ),
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateIssuer = false,
+            ValidateAudience = false,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
