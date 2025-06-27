@@ -12,7 +12,7 @@ public class MongoDbService
     private readonly IMongoDatabase _database;
     private readonly IMongoCollection<User> _usersCollection;
     private readonly IMongoCollection<Todo> _todosCollection;
-    private readonly IMongoCollection<MemorizationPlan> _memorizationPlansCollection;
+
     private readonly IMongoCollection<Reminder> _remindersCollection;
     private readonly IMongoCollection<ReminderInteraction> _reminderInteractionsCollection;
 
@@ -26,7 +26,7 @@ public class MongoDbService
 
         _usersCollection = _database.GetCollection<User>(config["MongoDB:UsersCollectionName"]);
         _todosCollection = _database.GetCollection<Todo>(config["MongoDB:TodosCollectionName"]);
-        _memorizationPlansCollection = _database.GetCollection<MemorizationPlan>(config["MongoDB:MemorizationPlansCollectionName"] ?? "memorizationPlans");
+
         _remindersCollection = _database.GetCollection<Reminder>(config["MongoDB:RemindersCollectionName"] ?? "reminders");
         _reminderInteractionsCollection = _database.GetCollection<ReminderInteraction>(config["MongoDB:ReminderInteractionsCollectionName"] ?? "reminderInteractions");
     }
@@ -166,49 +166,7 @@ public class MongoDbService
         await _todosCollection.DeleteOneAsync(x => x.Id == id);
         
 
-        
-    // Memorization Plans
-    public async Task<MemorizationPlan?> GetMemorizationPlanByUserIdAsync(string userId) =>
-        await _memorizationPlansCollection.Find(x => x.UserId == userId).FirstOrDefaultAsync();
-        
-    public async Task<MemorizationPlan?> GetMemorizationPlanByIdAsync(string id) =>
-        await _memorizationPlansCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
-        
-    public async Task CreateMemorizationPlanAsync(MemorizationPlan plan)
-    {
-        // Set timestamp
-        plan.CreatedAt = DateTime.UtcNow;
-        plan.UpdatedAt = DateTime.UtcNow;
-        
-        // Remove any existing plan for this user
-        await _memorizationPlansCollection.DeleteManyAsync(x => x.UserId == plan.UserId);
-        
-        // Insert the new plan
-        await _memorizationPlansCollection.InsertOneAsync(plan);
-    }
-    
-    public async Task UpdateMemorizationPlanAsync(string id, MemorizationPlan plan)
-    {
-        // Update timestamp
-        plan.UpdatedAt = DateTime.UtcNow;
-        
-        await _memorizationPlansCollection.ReplaceOneAsync(x => x.Id == id, plan);
-    }
-    
-    public async Task UpdateMemorizationPlanProgressAsync(string id, Progress progress)
-    {
-        await _memorizationPlansCollection.UpdateOneAsync(
-            x => x.Id == id,
-            Builders<MemorizationPlan>.Update
-                .Set(x => x.Progress, progress)
-                .Set(x => x.UpdatedAt, DateTime.UtcNow));
-    }
-    
-    public async Task DeleteMemorizationPlanAsync(string id) =>
-        await _memorizationPlansCollection.DeleteOneAsync(x => x.Id == id);
-        
-    public async Task DeleteMemorizationPlansByUserIdAsync(string userId) =>
-        await _memorizationPlansCollection.DeleteManyAsync(x => x.UserId == userId);
+
         
     // Reminders
     public async Task<List<Reminder>> GetRemindersByUserIdAsync(string userId) =>

@@ -60,6 +60,7 @@ public class AuthController : ControllerBase
                 id = user.Id,
                 username = user.Username,
                 email = user.Email,
+                roles = user.Roles ?? new List<string>(),
                 createdAt = user.CreatedAt,
                 favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
@@ -126,6 +127,7 @@ public class AuthController : ControllerBase
                 id = user.Id,
                 username = user.Username,
                 email = user.Email,
+                roles = user.Roles ?? new List<string>(),
                 createdAt = user.CreatedAt,
                 favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
@@ -173,6 +175,7 @@ public class AuthController : ControllerBase
                 id = user.Id,
                 username = user.Username,
                 email = user.Email,
+                roles = user.Roles ?? new List<string>(),
                 createdAt = user.CreatedAt,
                 favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
