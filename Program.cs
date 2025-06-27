@@ -22,10 +22,6 @@ builder.Services.AddSwaggerGen();
 // Register services
 builder.Services.AddSingleton<MongoDbService>();
 builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
-
-// Register background services
-builder.Services.AddHostedService<ReminderBackgroundService>();
 
 // Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
