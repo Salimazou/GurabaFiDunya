@@ -366,10 +366,23 @@ public class MongoDbService
     public async Task ResetDailyReminderCompletionsAsync()
     {
         var today = DateTime.UtcNow.Date;
+        
+        // Only reset daily counters and completion status for reminders that:
+        // 1. Haven't been updated today (LastReminderDate != today)
+        // 2. Are still active (IsActive = true)
+        // 3. Are daily recurring reminders (Frequency = Daily)
+        // This prevents resetting completion status of historical completed reminders
         await _remindersCollection.UpdateManyAsync(
-            x => x.LastReminderDate != today,
+            x => x.LastReminderDate != today && x.IsActive && x.Frequency == ReminderFrequency.Daily,
             Builders<Reminder>.Update
                 .Set(x => x.IsCompleted, false)
+                .Set(x => x.TimesRemindedToday, 0)
+                .Set(x => x.UpdatedAt, DateTime.UtcNow));
+                
+        // For non-daily reminders, only reset the daily counter without touching completion status
+        await _remindersCollection.UpdateManyAsync(
+            x => x.LastReminderDate != today && x.IsActive && x.Frequency != ReminderFrequency.Daily,
+            Builders<Reminder>.Update
                 .Set(x => x.TimesRemindedToday, 0)
                 .Set(x => x.UpdatedAt, DateTime.UtcNow));
     }
