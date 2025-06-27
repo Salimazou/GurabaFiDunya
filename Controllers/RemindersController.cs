@@ -339,31 +339,4 @@ public class RemindersController : ControllerBase
 }
 
 // Request DTOs
-public class CreateReminderRequest
-{
-    public string Title { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-    public TimeSpan StartTime { get; set; }
-    public TimeSpan EndTime { get; set; }
-    public ReminderFrequency Frequency { get; set; }
-    public ReminderType Type { get; set; }
-    public int MaxRemindersPerDay { get; set; } = 3;
-}
-
-public class UpdateReminderRequest
-{
-    public string? Title { get; set; }
-    public string? Description { get; set; }
-    public TimeSpan? StartTime { get; set; }
-    public TimeSpan? EndTime { get; set; }
-    public ReminderFrequency? Frequency { get; set; }
-    public ReminderType? Type { get; set; }
-    public bool? IsActive { get; set; }
-    public int? MaxRemindersPerDay { get; set; }
-}
-
-public class ReminderInteractionRequest
-{
-    public ReminderAction Action { get; set; }
-    public string? Notes { get; set; }
-} 
+ 
