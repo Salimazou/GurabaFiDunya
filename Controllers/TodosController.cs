@@ -19,6 +19,16 @@ public class TodosController : ControllerBase
         _mongoDbService = mongoDbService;
     }
     
+    private string GetCurrentUserId()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+        {
+            throw new UnauthorizedAccessException("User ID claim not found in token");
+        }
+        return userId;
+    }
+    
     [HttpGet]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> GetAllTodos()
@@ -42,7 +52,7 @@ public class TodosController : ControllerBase
         try
         {
             // Only allow users to access their own todos or admins to access any todos
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (currentUserId != userId && !isAdmin)
@@ -74,7 +84,7 @@ public class TodosController : ControllerBase
             }
             
             // Only allow users to access their own todos or admins to access any todos
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (todo.UserId != currentUserId && !isAdmin)
@@ -98,7 +108,7 @@ public class TodosController : ControllerBase
         try
         {
             // Set the user ID to the current user's ID unless admin
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (!isAdmin && todo.UserId != currentUserId)
@@ -156,7 +166,7 @@ public class TodosController : ControllerBase
             }
             
             // Only allow users to update their own todos or admins to update any todos
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (existingTodo.UserId != currentUserId && !isAdmin)
@@ -197,7 +207,7 @@ public class TodosController : ControllerBase
             }
             
             // Only allow users to complete their own todos or admins to complete any todos
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (todo.UserId != currentUserId && !isAdmin)
@@ -233,7 +243,7 @@ public class TodosController : ControllerBase
             }
             
             // Only allow users to delete their own todos or admins to delete any todos
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var currentUserId = GetCurrentUserId();
             var isAdmin = User.IsInRole("Admin");
             
             if (todo.UserId != currentUserId && !isAdmin)
