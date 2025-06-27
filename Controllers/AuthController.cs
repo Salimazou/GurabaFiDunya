@@ -55,20 +55,20 @@ public class AuthController : ControllerBase
             var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
             
-            // Create response
-            var response = new AuthResponseDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Roles = user.Roles,
-                Token = token
+            // Create clean user response (without sensitive data)
+            var userResponse = new {
+                id = user.Id,
+                username = user.Username,
+                email = user.Email,
+                roles = user.Roles ?? new List<string>(),
+                createdAt = user.CreatedAt,
+                favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
             
             return Ok(new {
                 token = token,
                 refreshToken = refreshToken,
-                user = response
+                user = userResponse
             });
         }
         catch (Exception ex)
@@ -122,19 +122,20 @@ public class AuthController : ControllerBase
             var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
             
-            var response = new AuthResponseDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Roles = user.Roles,
-                Token = token
+            // Create clean user response (without sensitive data)
+            var userResponse = new {
+                id = user.Id,
+                username = user.Username,
+                email = user.Email,
+                roles = user.Roles ?? new List<string>(),
+                createdAt = user.CreatedAt,
+                favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
             
             return Ok(new {
                 token = token,
                 refreshToken = refreshToken,
-                user = response
+                user = userResponse
             });
         }
         catch (Exception ex)
@@ -169,20 +170,20 @@ public class AuthController : ControllerBase
             // Store the new refresh token (this automatically revokes the old one)
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, newRefreshToken, newRefreshTokenExpiry);
             
-            // Create response
-            var response = new AuthResponseDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Roles = user.Roles,
-                Token = newAccessToken
+            // Create clean user response (without sensitive data)
+            var userResponse = new {
+                id = user.Id,
+                username = user.Username,
+                email = user.Email,
+                roles = user.Roles ?? new List<string>(),
+                createdAt = user.CreatedAt,
+                favoriteReciters = user.FavoriteReciters ?? new List<string>()
             };
             
             return Ok(new {
                 token = newAccessToken,
                 refreshToken = newRefreshToken,
-                user = response
+                user = userResponse
             });
         }
         catch (Exception ex)
