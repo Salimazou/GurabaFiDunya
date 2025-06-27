@@ -34,6 +34,12 @@ public class RegisterDto
     public string LastName { get; set; } = string.Empty;
 }
 
+public class RefreshTokenRequest
+{
+    [Required(ErrorMessage = "Refresh token is required")]
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
 public class AuthResponseDto
 {
     public string Id { get; set; } = string.Empty;

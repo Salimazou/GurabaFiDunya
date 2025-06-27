@@ -50,6 +50,11 @@ public class AuthController : ControllerBase
             // Generate JWT token
             var token = _jwtService.GenerateToken(user);
             
+            // Generate and store secure refresh token
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
+            
             // Create response
             var response = new AuthResponseDto
             {
@@ -60,7 +65,11 @@ public class AuthController : ControllerBase
                 Token = token
             };
             
-            return Ok(response);
+            return Ok(new {
+                token = token,
+                refreshToken = refreshToken,
+                user = response
+            });
         }
         catch (Exception ex)
         {
@@ -100,8 +109,18 @@ public class AuthController : ControllerBase
             // Re-fetch the user to get the ID assigned by MongoDB
             user = await _mongoDbService.GetUserByEmailAsync(registerDto.Email);
             
+            if (user == null)
+            {
+                return StatusCode(500, new { message = "Gebruiker aangemaakt maar niet gevonden" });
+            }
+            
             // Generate JWT token
             var token = _jwtService.GenerateToken(user);
+            
+            // Generate and store secure refresh token
+            var refreshToken = _jwtService.GenerateRefreshToken();
+            var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
             
             var response = new AuthResponseDto
             {
@@ -112,11 +131,92 @@ public class AuthController : ControllerBase
                 Token = token
             };
             
-            return Ok(response);
+            return Ok(new {
+                token = token,
+                refreshToken = refreshToken,
+                user = response
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during registration");
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    [HttpPost("refresh")]
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(request.RefreshToken))
+            {
+                return BadRequest(new { message = "Refresh token is required" });
+            }
+            
+            // Validate the refresh token
+            var user = await _mongoDbService.GetUserByRefreshTokenAsync(request.RefreshToken);
+            if (user == null)
+            {
+                return Unauthorized(new { message = "Invalid or expired refresh token" });
+            }
+            
+            // Generate new tokens
+            var newAccessToken = _jwtService.GenerateToken(user);
+            var newRefreshToken = _jwtService.GenerateRefreshToken();
+            var newRefreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
+            
+            // Store the new refresh token (this automatically revokes the old one)
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, newRefreshToken, newRefreshTokenExpiry);
+            
+            // Create response
+            var response = new AuthResponseDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                Token = newAccessToken
+            };
+            
+            return Ok(new {
+                token = newAccessToken,
+                refreshToken = newRefreshToken,
+                user = response
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during token refresh");
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
+        }
+    }
+    
+    [HttpPost("revoke")]
+    public async Task<IActionResult> RevokeToken([FromBody] RefreshTokenRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(request.RefreshToken))
+            {
+                return BadRequest(new { message = "Refresh token is required" });
+            }
+            
+            // Find user by refresh token
+            var user = await _mongoDbService.GetUserByRefreshTokenAsync(request.RefreshToken);
+            if (user == null)
+            {
+                return BadRequest(new { message = "Invalid refresh token" });
+            }
+            
+            // Revoke the refresh token
+            await _mongoDbService.RevokeRefreshTokenAsync(user.Id);
+            
+            return Ok(new { message = "Token revoked successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during token revocation");
             return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
     }
