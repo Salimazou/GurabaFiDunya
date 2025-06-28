@@ -16,10 +16,11 @@ public class MongoDbService
 
     public MongoDbService(IConfiguration config)
     {
-        var connectionString = config.GetConnectionString("MongoDB");
-        var mongoUrl = MongoUrl.Create(connectionString);
-        var mongoClient = new MongoClient(mongoUrl);
-        _database = mongoClient.GetDatabase(mongoUrl.DatabaseName);
+        var settings = MongoClientSettings.FromConnectionString(config["MongoDB:ConnectionString"]);
+        settings.ServerApi = new ServerApi(ServerApiVersion.V1);
+
+        var client = new MongoClient(settings);
+        _database = client.GetDatabase(config["MongoDB:DatabaseName"]);
 
         // Initialize collections
         _usersCollection = _database.GetCollection<User>(config["MongoDB:UsersCollectionName"]);
