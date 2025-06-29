@@ -228,7 +228,7 @@ public class UsersController : ControllerBase
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
-            return Ok(new { message = "Reciteerder toegevoegd aan favorieten", favoriteReciters = user.FavoriteReciters });
+            return Ok(user);
         }
         catch (Exception ex)
         {
@@ -264,7 +264,7 @@ public class UsersController : ControllerBase
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
-            return Ok(new { message = "Reciteerder verwijderd uit favorieten", favoriteReciters = user.FavoriteReciters });
+            return Ok(user);
         }
         catch (Exception ex)
         {
@@ -297,7 +297,7 @@ public class UsersController : ControllerBase
             user.UpdatedAt = DateTime.UtcNow;
             await _mongoDbService.UpdateUserAsync(userId, user);
             
-            return Ok(new { message = "Favoriete reciteerders bijgewerkt", favoriteReciters = user.FavoriteReciters });
+            return Ok(user);
         }
         catch (Exception ex)
         {
