@@ -26,7 +26,18 @@ public class UsersController : ControllerBase
         try
         {
             var users = await _mongoDbService.GetAllUsersAsync();
-            return Ok(users);
+            var userDtos = users.Select(user => new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            }).ToList();
+            return Ok(userDtos);
         }
         catch (Exception ex)
         {
@@ -47,7 +58,18 @@ public class UsersController : ControllerBase
                 return NotFound(new { message = "Gebruiker niet gevonden" });
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -74,7 +96,18 @@ public class UsersController : ControllerBase
             // Re-fetch the user to get the ID assigned by MongoDB
             user = await _mongoDbService.GetUserByEmailAsync(user.Email);
             
-            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, userDto);
         }
         catch (Exception ex)
         {
@@ -111,7 +144,18 @@ public class UsersController : ControllerBase
             
             await _mongoDbService.UpdateUserAsync(id, user);
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -163,7 +207,18 @@ public class UsersController : ControllerBase
                 return NotFound(new { message = "Gebruiker niet gevonden" });
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -207,11 +262,10 @@ public class UsersController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
             {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
+                return Unauthorized();
             }
             
             var user = await _mongoDbService.GetUserByIdAsync(userId);
@@ -224,11 +278,21 @@ public class UsersController : ControllerBase
             if (!user.FavoriteReciters.Contains(reciterId))
             {
                 user.FavoriteReciters.Add(reciterId);
-                user.UpdatedAt = DateTime.UtcNow;
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -243,11 +307,10 @@ public class UsersController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
             {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
+                return Unauthorized();
             }
             
             var user = await _mongoDbService.GetUserByIdAsync(userId);
@@ -260,11 +323,21 @@ public class UsersController : ControllerBase
             if (user.FavoriteReciters.Contains(reciterId))
             {
                 user.FavoriteReciters.Remove(reciterId);
-                user.UpdatedAt = DateTime.UtcNow;
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -279,11 +352,10 @@ public class UsersController : ControllerBase
     {
         try
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
             {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
+                return Unauthorized();
             }
             
             var user = await _mongoDbService.GetUserByIdAsync(userId);
@@ -294,10 +366,20 @@ public class UsersController : ControllerBase
             }
             
             user.FavoriteReciters = favoriteReciters ?? new List<string>();
-            user.UpdatedAt = DateTime.UtcNow;
             await _mongoDbService.UpdateUserAsync(userId, user);
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
