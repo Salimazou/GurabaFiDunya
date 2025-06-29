@@ -278,6 +278,7 @@ public class UsersController : ControllerBase
             if (!user.FavoriteReciters.Contains(reciterId))
             {
                 user.FavoriteReciters.Add(reciterId);
+                user.UpdatedAt = DateTime.UtcNow;
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
@@ -323,6 +324,7 @@ public class UsersController : ControllerBase
             if (user.FavoriteReciters.Contains(reciterId))
             {
                 user.FavoriteReciters.Remove(reciterId);
+                user.UpdatedAt = DateTime.UtcNow;
                 await _mongoDbService.UpdateUserAsync(userId, user);
             }
             
@@ -366,6 +368,7 @@ public class UsersController : ControllerBase
             }
             
             user.FavoriteReciters = favoriteReciters ?? new List<string>();
+            user.UpdatedAt = DateTime.UtcNow;
             await _mongoDbService.UpdateUserAsync(userId, user);
             
             var userDto = new UserDto
