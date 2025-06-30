@@ -138,7 +138,7 @@ public class AuthController : ControllerBase
                 User = userDto
             };
             
-            return CreatedAtAction(nameof(GetCurrentUser), new { id = user.Id }, response);
+            return CreatedAtAction(nameof(GetCurrentUser), response);
         }
         catch (Exception ex)
         {
