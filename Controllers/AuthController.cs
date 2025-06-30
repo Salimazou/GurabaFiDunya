@@ -138,7 +138,7 @@ public class AuthController : ControllerBase
                 User = userDto
             };
             
-            return CreatedAtAction(nameof(Login), response);
+            return CreatedAtAction(nameof(GetCurrentUser), response);
         }
         catch (Exception ex)
         {
@@ -212,30 +212,38 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null)
+        try
         {
-            return Unauthorized();
-        }
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
+            {
+                return Unauthorized(new { message = "Niet geauthenticeerd" });
+            }
 
-        var user = await _mongoDbService.GetUserByIdAsync(userId);
-        if (user == null)
+            var user = await _mongoDbService.GetUserByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "Gebruiker niet gevonden" });
+            }
+
+            var userDto = new UserDto {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FavoriteReciters = user.FavoriteReciters,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+
+            return Ok(userDto);
+        }
+        catch (Exception ex)
         {
-            return NotFound();
+            _logger.LogError(ex, "Error getting current user");
+            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
         }
-
-        var userDto = new UserDto {
-            Id = user.Id,
-            Username = user.Username,
-            Email = user.Email,
-            Roles = user.Roles,
-            CreatedAt = user.CreatedAt,
-            FavoriteReciters = user.FavoriteReciters,
-            FirstName = user.FirstName,
-            LastName = user.LastName
-        };
-
-        return Ok(userDto);
     }
     
     private string ComputePasswordHash(string password)
