@@ -31,7 +31,11 @@ public class User
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
-    // FIX: Add roles field for backward compatibility with existing database users
+    // FIX: Add backward compatibility fields for existing database users
+    [BsonElement("updatedAt")]
+    [BsonIgnoreIfNull]
+    public DateTime? UpdatedAt { get; set; }
+    
     [BsonElement("roles")]
     [BsonIgnoreIfNull]
     public List<string>? Roles { get; set; }
