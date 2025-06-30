@@ -385,76 +385,103 @@ public class MongoDbService
             }
 
             var bulkOperations = new List<WriteModel<ReminderCompletion>>();
+            var processedCount = 0;
             
             foreach (var completion in completions)
             {
                 try
                 {
-                    // Validate completion
-                    if (string.IsNullOrEmpty(completion.ReminderId) || string.IsNullOrEmpty(completion.ReminderTitle))
+                    // Validate completion data
+                    if (string.IsNullOrWhiteSpace(completion.ReminderId) || string.IsNullOrWhiteSpace(completion.ReminderTitle))
                     {
                         _logger.LogWarning("Invalid completion data: ReminderId={ReminderId}, ReminderTitle={ReminderTitle}", 
                             completion.ReminderId, completion.ReminderTitle);
                         continue;
                     }
 
-                    // Check if completion already exists (duplicate prevention)
-                    var existingFilter = Builders<ReminderCompletion>.Filter.And(
-                        Builders<ReminderCompletion>.Filter.Eq(x => x.UserId, userId),
-                        Builders<ReminderCompletion>.Filter.Eq(x => x.ReminderId, completion.ReminderId),
-                        Builders<ReminderCompletion>.Filter.Eq(x => x.CompletionDate, completion.CompletionDate.Date)
-                    );
+                    // Normalize DeviceId - CRITICAL for consistent duplicate detection
+                    var normalizedDeviceId = string.IsNullOrWhiteSpace(completion.DeviceId) ? "unknown" : completion.DeviceId.Trim();
                     
-                    if (!string.IsNullOrEmpty(completion.DeviceId))
-                    {
-                        existingFilter = Builders<ReminderCompletion>.Filter.And(
-                            existingFilter,
-                            Builders<ReminderCompletion>.Filter.Eq(x => x.DeviceId, completion.DeviceId)
-                        );
-                    }
-
-                    // Check if this completion already exists
-                    var existingCompletion = await _reminderCompletionsCollection
-                        .Find(existingFilter)
-                        .FirstOrDefaultAsync();
-
-                    if (existingCompletion != null)
-                    {
-                        _logger.LogInformation("Skipping duplicate completion for user {UserId}, reminder {ReminderId}, date {CompletionDate}",
-                            userId, completion.ReminderId, completion.CompletionDate.Date);
-                        continue; // Skip duplicates
-                    }
-                    
+                    // Create the reminder completion object
                     var reminderCompletion = new ReminderCompletion
                     {
-                        // Id = null, // MongoDB will auto-generate
+                        Id = null, // CRITICAL: Must be null for MongoDB auto-generation, NOT empty string
                         UserId = userId,
-                        ReminderId = completion.ReminderId,
-                        ReminderTitle = completion.ReminderTitle,
+                        ReminderId = completion.ReminderId.Trim(),
+                        ReminderTitle = completion.ReminderTitle.Trim(),
                         CompletedAt = completion.CompletedAt,
-                        CompletionDate = completion.CompletionDate.Date,
-                        DeviceId = completion.DeviceId ?? "unknown",
+                        CompletionDate = completion.CompletionDate.Date, // Normalize to date only
+                        DeviceId = normalizedDeviceId,
                         SyncedAt = DateTime.UtcNow
                     };
                     
-                    // Use insert for new documents
-                    var insertOperation = new InsertOneModel<ReminderCompletion>(reminderCompletion);
+                    // ATOMIC UPSERT OPERATION - Prevents race conditions
+                    // Filter to identify unique completion (composite key)
+                    var filter = Builders<ReminderCompletion>.Filter.And(
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.UserId, userId),
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.ReminderId, reminderCompletion.ReminderId),
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.CompletionDate, reminderCompletion.CompletionDate),
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.DeviceId, normalizedDeviceId)
+                    );
                     
-                    bulkOperations.Add(insertOperation);
+                    // Use ReplaceOneModel with upsert=true for atomic operation
+                    var replaceOperation = new ReplaceOneModel<ReminderCompletion>(filter, reminderCompletion)
+                    {
+                        IsUpsert = true
+                    };
+                    
+                    bulkOperations.Add(replaceOperation);
+                    processedCount++;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error processing individual completion for user {UserId}, skipping", userId);
+                    _logger.LogWarning(ex, "Error processing individual completion for user {UserId}, reminder {ReminderId}, skipping", 
+                        userId, completion?.ReminderId ?? "unknown");
                     continue;
                 }
             }
             
             if (bulkOperations.Count > 0)
             {
-                var result = await _reminderCompletionsCollection.BulkWriteAsync(bulkOperations);
-                _logger.LogInformation("Synced {CompletionCount} reminder completions for user {UserId}. " +
-                    "Inserted: {InsertedCount}, Modified: {ModifiedCount}", 
-                    completions.Count, userId, result.InsertedCount, result.ModifiedCount);
+                try
+                {
+                    var bulkWriteOptions = new BulkWriteOptions 
+                    { 
+                        IsOrdered = false, // Allow parallel processing for better performance
+                        BypassDocumentValidation = false
+                    };
+                    
+                    var result = await _reminderCompletionsCollection.BulkWriteAsync(bulkOperations, bulkWriteOptions);
+                    
+                    _logger.LogInformation("Synced {ProcessedCount} reminder completions for user {UserId}. " +
+                        "Inserted: {InsertedCount}, Modified: {ModifiedCount}, Upserted: {UpsertedCount}", 
+                        processedCount, userId, result.InsertedCount, result.ModifiedCount, result.Upserts.Count);
+                }
+                catch (MongoBulkWriteException ex)
+                {
+                    // Handle duplicate key errors gracefully - this can still happen during high concurrency
+                    var duplicateErrors = ex.WriteErrors?.Where(e => e.Code == 11000).ToList() ?? new List<MongoBulkWriteError>();
+                    var otherErrors = ex.WriteErrors?.Where(e => e.Code != 11000).ToList() ?? new List<MongoBulkWriteError>();
+                    
+                    if (duplicateErrors.Any())
+                    {
+                        _logger.LogInformation("Encountered {DuplicateCount} duplicate key errors during sync for user {UserId} - these are expected and handled gracefully", 
+                            duplicateErrors.Count, userId);
+                    }
+                    
+                    if (otherErrors.Any())
+                    {
+                        _logger.LogError("Encountered {ErrorCount} non-duplicate errors during sync for user {UserId}: {Errors}", 
+                            otherErrors.Count, userId, string.Join("; ", otherErrors.Select(e => e.Message)));
+                        throw; // Re-throw for serious errors
+                    }
+                    
+                    // If only duplicate errors, log success with processed results
+                    var result = ex.Result;
+                    _logger.LogInformation("Synced {ProcessedCount} reminder completions for user {UserId} with {DuplicateCount} duplicates handled. " +
+                        "Inserted: {InsertedCount}, Modified: {ModifiedCount}, Upserted: {UpsertedCount}", 
+                        processedCount, userId, duplicateErrors.Count, result.InsertedCount, result.ModifiedCount, result.Upserts.Count);
+                }
             }
             else
             {
@@ -466,7 +493,7 @@ public class MongoDbService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing reminder completions for user {UserId}. Details: {ExceptionMessage}", userId, ex.Message);
-            throw; // Throw again to see the exact error
+            throw;
         }
     }
     
@@ -854,7 +881,7 @@ public class MongoDbService
                 )
             );
             
-            // Compound index for duplicate prevention (without PartialFilterExpression for compatibility)
+            // UNIQUE compound index for duplicate prevention - CRITICAL for preventing race conditions
             await _reminderCompletionsCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<ReminderCompletion>(
                     Builders<ReminderCompletion>.IndexKeys
@@ -863,6 +890,7 @@ public class MongoDbService
                         .Ascending(x => x.CompletionDate)
                         .Ascending(x => x.DeviceId),
                     new CreateIndexOptions { 
+                        Unique = true,
                         Name = "userId_reminderId_completionDate_deviceId_unique"
                     }
                 )
