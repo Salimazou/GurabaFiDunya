@@ -1017,6 +1017,7 @@ public class MongoDbService
             analytics.CompletionRate = totalResponses > 0 ? (double)analytics.TotalResponsesDone / totalResponses * 100 : 0;
 
                         // Average response time
+
             var responseTimeLogs = logs.Where(x => x.ResponseDelayMinutes.HasValue).ToList();
             analytics.AverageResponseTimeMinutes = responseTimeLogs.Any() 
                 ? responseTimeLogs.Average(x => x.ResponseDelayMinutes!.Value) 
