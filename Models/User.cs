@@ -41,9 +41,6 @@ public class User
     [BsonElement("updatedAt")]
     public DateTime? UpdatedAt { get; set; }
     
-    [BsonElement("favoriteReciters")]
-    public List<string> FavoriteReciters { get; set; } = new List<string>();
-    
     // Refresh token fields
     [BsonElement("refreshToken")]
     public string? RefreshToken { get; set; }

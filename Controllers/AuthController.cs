@@ -61,7 +61,6 @@ public class AuthController : ControllerBase
                 Email = user.Email,
                 Roles = user.Roles,
                 CreatedAt = user.CreatedAt,
-                FavoriteReciters = user.FavoriteReciters,
                 FirstName = user.FirstName,
                 LastName = user.LastName
             };
@@ -130,7 +129,6 @@ public class AuthController : ControllerBase
                 Email = user.Email,
                 Roles = user.Roles,
                 CreatedAt = user.CreatedAt,
-                FavoriteReciters = user.FavoriteReciters,
                 FirstName = user.FirstName,
                 LastName = user.LastName
             };
@@ -236,7 +234,6 @@ public class AuthController : ControllerBase
                 Email = user.Email,
                 Roles = user.Roles,
                 CreatedAt = user.CreatedAt,
-                FavoriteReciters = user.FavoriteReciters,
                 FirstName = user.FirstName,
                 LastName = user.LastName
             };
