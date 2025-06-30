@@ -65,9 +65,21 @@ public class AdminAuthMiddleware
     {
         // These paths are always admin-only
         if (path.StartsWith("/api/admin") || 
-            path.StartsWith("/api/users") ||
             path.StartsWith("/api/stats"))
         {
+            return true;
+        }
+        
+        // Users endpoints - exclude favorite reciters (users can manage their own favorites)
+        if (path.StartsWith("/api/users"))
+        {
+            // Allow users to manage their own favorite reciters
+            if (path.StartsWith("/api/users/me/favorite-reciters"))
+            {
+                return false;
+            }
+            
+            // All other /api/users endpoints require admin
             return true;
         }
         
