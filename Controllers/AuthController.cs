@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using server.Models;
 using server.Services;
 using System.Security.Cryptography;
@@ -47,29 +48,30 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Onjuist wachtwoord" });
             }
             
-            // Generate JWT token
+            // Generate JWT token and refresh token
             var token = _jwtService.GenerateToken(user);
+            var refreshToken = _jwtService.GenerateRefreshToken();
             
             // Generate and store secure refresh token
-            var refreshToken = _jwtService.GenerateRefreshToken();
-            var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
-            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, _jwtService.GetRefreshTokenExpiryTime());
             
-            // Create clean user response (without sensitive data)
-            var userResponse = new {
-                id = user.Id,
-                username = user.Username,
-                email = user.Email,
-                roles = user.Roles ?? new List<string>(),
-                createdAt = user.CreatedAt,
-                favoriteReciters = user.FavoriteReciters ?? new List<string>()
+            var userDto = new UserDto {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
             };
             
-            return Ok(new {
-                token = token,
-                refreshToken = refreshToken,
-                user = userResponse
-            });
+            var response = new AuthResponseDto {
+                Token = token,
+                RefreshToken = refreshToken,
+                User = userDto
+            };
+            
+            return Ok(response);
         }
         catch (Exception ex)
         {
@@ -114,29 +116,30 @@ public class AuthController : ControllerBase
                 return StatusCode(500, new { message = "Gebruiker aangemaakt maar niet gevonden" });
             }
             
-            // Generate JWT token
+            // Generate JWT token and refresh token
             var token = _jwtService.GenerateToken(user);
+            var refreshToken = _jwtService.GenerateRefreshToken();
             
             // Generate and store secure refresh token
-            var refreshToken = _jwtService.GenerateRefreshToken();
-            var refreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
-            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, refreshTokenExpiry);
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, _jwtService.GetRefreshTokenExpiryTime());
             
-            // Create clean user response (without sensitive data)
-            var userResponse = new {
-                id = user.Id,
-                username = user.Username,
-                email = user.Email,
-                roles = user.Roles ?? new List<string>(),
-                createdAt = user.CreatedAt,
-                favoriteReciters = user.FavoriteReciters ?? new List<string>()
+            var userDto = new UserDto {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
             };
             
-            return Ok(new {
-                token = token,
-                refreshToken = refreshToken,
-                user = userResponse
-            });
+            var response = new AuthResponseDto {
+                Token = token,
+                RefreshToken = refreshToken,
+                User = userDto
+            };
+            
+            return CreatedAtAction(nameof(GetCurrentUser), response);
         }
         catch (Exception ex)
         {
@@ -163,28 +166,13 @@ public class AuthController : ControllerBase
             }
             
             // Generate new tokens
-            var newAccessToken = _jwtService.GenerateToken(user);
+            var newToken = _jwtService.GenerateToken(user);
             var newRefreshToken = _jwtService.GenerateRefreshToken();
-            var newRefreshTokenExpiry = _jwtService.GetRefreshTokenExpiryTime();
             
             // Store the new refresh token (this automatically revokes the old one)
-            await _mongoDbService.StoreRefreshTokenAsync(user.Id, newRefreshToken, newRefreshTokenExpiry);
+            await _mongoDbService.StoreRefreshTokenAsync(user.Id, newRefreshToken, _jwtService.GetRefreshTokenExpiryTime());
             
-            // Create clean user response (without sensitive data)
-            var userResponse = new {
-                id = user.Id,
-                username = user.Username,
-                email = user.Email,
-                roles = user.Roles ?? new List<string>(),
-                createdAt = user.CreatedAt,
-                favoriteReciters = user.FavoriteReciters ?? new List<string>()
-            };
-            
-            return Ok(new {
-                token = newAccessToken,
-                refreshToken = newRefreshToken,
-                user = userResponse
-            });
+            return Ok(new { token = newToken, refreshToken = newRefreshToken });
         }
         catch (Exception ex)
         {
@@ -222,26 +210,35 @@ public class AuthController : ControllerBase
         }
     }
     
+    [Authorize]
     [HttpGet("me")]
     public async Task<IActionResult> GetCurrentUser()
     {
         try
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
             {
                 return Unauthorized(new { message = "Niet geauthenticeerd" });
             }
-            
+
             var user = await _mongoDbService.GetUserByIdAsync(userId);
-            
             if (user == null)
             {
                 return NotFound(new { message = "Gebruiker niet gevonden" });
             }
-            
-            return Ok(user);
+
+            var userDto = new UserDto {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+
+            return Ok(userDto);
         }
         catch (Exception ex)
         {

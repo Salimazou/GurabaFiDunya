@@ -55,5 +55,4 @@ publish/
 *.model
 *.pt
 *.onnx
-Models/
 

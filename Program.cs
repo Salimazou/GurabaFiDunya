@@ -7,17 +7,21 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Configure JSON options to handle enums as strings
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        
+        // Configure camelCase property naming (optional - matches Swift conventions)
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Register services
 builder.Services.AddSingleton<MongoDbService>();
 builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<IPushNotificationService, PushNotificationService>();
-
-// Register background services
-builder.Services.AddHostedService<ReminderBackgroundService>();
 
 // Add JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -29,13 +33,11 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.ASCII.GetBytes(
                     builder.Configuration["Jwt:Key"] ?? 
-                    throw new InvalidOperationException("JWT Key not configured")
+                    "this_is_a_default_key_for_development_only_should_be_changed_in_production"
                 )
             ),
-            ValidateIssuer = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidateAudience = true,
-            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateIssuer = false,
+            ValidateAudience = false,
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };

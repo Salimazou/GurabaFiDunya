@@ -1,13 +1,16 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace server.Models;
 
+[BsonIgnoreExtraElements] // Ignore old favoriteReciters field and other legacy fields
 public class User
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
+    [JsonPropertyName("id")]
     public string Id { get; set; } = string.Empty;
     
     [BsonElement("username")]
@@ -38,9 +41,6 @@ public class User
     
     [BsonElement("updatedAt")]
     public DateTime? UpdatedAt { get; set; }
-    
-    [BsonElement("favoriteReciters")]
-    public List<string> FavoriteReciters { get; set; } = new List<string>();
     
     // Refresh token fields
     [BsonElement("refreshToken")]

@@ -26,7 +26,17 @@ public class UsersController : ControllerBase
         try
         {
             var users = await _mongoDbService.GetAllUsersAsync();
-            return Ok(users);
+            var userDtos = users.Select(user => new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            }).ToList();
+            return Ok(userDtos);
         }
         catch (Exception ex)
         {
@@ -47,7 +57,17 @@ public class UsersController : ControllerBase
                 return NotFound(new { message = "Gebruiker niet gevonden" });
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -72,9 +92,24 @@ public class UsersController : ControllerBase
             await _mongoDbService.CreateUserAsync(user);
             
             // Re-fetch the user to get the ID assigned by MongoDB
-            user = await _mongoDbService.GetUserByEmailAsync(user.Email);
+            var createdUser = await _mongoDbService.GetUserByEmailAsync(user.Email);
             
-            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, user);
+            if (createdUser == null)
+            {
+                return StatusCode(500, new { message = "Gebruiker aangemaakt maar niet gevonden" });
+            }
+            
+            var userDto = new UserDto
+            {
+                Id = createdUser.Id,
+                Username = createdUser.Username,
+                Email = createdUser.Email,
+                Roles = createdUser.Roles,
+                CreatedAt = createdUser.CreatedAt,
+                FirstName = createdUser.FirstName,
+                LastName = createdUser.LastName
+            };
+            return CreatedAtAction(nameof(GetUserById), new { id = createdUser.Id }, userDto);
         }
         catch (Exception ex)
         {
@@ -111,7 +146,17 @@ public class UsersController : ControllerBase
             
             await _mongoDbService.UpdateUserAsync(id, user);
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -163,7 +208,17 @@ public class UsersController : ControllerBase
                 return NotFound(new { message = "Gebruiker niet gevonden" });
             }
             
-            return Ok(user);
+            var userDto = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName
+            };
+            return Ok(userDto);
         }
         catch (Exception ex)
         {
@@ -172,137 +227,5 @@ public class UsersController : ControllerBase
         }
     }
     
-    [HttpGet("me/favorite-reciters")]
-    [Authorize]
-    public async Task<IActionResult> GetFavoriteReciters()
-    {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
-            }
-            
-            var user = await _mongoDbService.GetUserByIdAsync(userId);
-            
-            if (user == null)
-            {
-                return NotFound(new { message = "Gebruiker niet gevonden" });
-            }
-            
-            return Ok(new { favoriteReciters = user.FavoriteReciters });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting favorite reciters");
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-    
-    [HttpPost("me/favorite-reciters/{reciterId}")]
-    [Authorize]
-    public async Task<IActionResult> AddFavoriteReciter(string reciterId)
-    {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
-            }
-            
-            var user = await _mongoDbService.GetUserByIdAsync(userId);
-            
-            if (user == null)
-            {
-                return NotFound(new { message = "Gebruiker niet gevonden" });
-            }
-            
-            if (!user.FavoriteReciters.Contains(reciterId))
-            {
-                user.FavoriteReciters.Add(reciterId);
-                user.UpdatedAt = DateTime.UtcNow;
-                await _mongoDbService.UpdateUserAsync(userId, user);
-            }
-            
-            return Ok(new { message = "Reciteerder toegevoegd aan favorieten", favoriteReciters = user.FavoriteReciters });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error adding favorite reciter {ReciterId}", reciterId);
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-    
-    [HttpDelete("me/favorite-reciters/{reciterId}")]
-    [Authorize]
-    public async Task<IActionResult> RemoveFavoriteReciter(string reciterId)
-    {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
-            }
-            
-            var user = await _mongoDbService.GetUserByIdAsync(userId);
-            
-            if (user == null)
-            {
-                return NotFound(new { message = "Gebruiker niet gevonden" });
-            }
-            
-            if (user.FavoriteReciters.Contains(reciterId))
-            {
-                user.FavoriteReciters.Remove(reciterId);
-                user.UpdatedAt = DateTime.UtcNow;
-                await _mongoDbService.UpdateUserAsync(userId, user);
-            }
-            
-            return Ok(new { message = "Reciteerder verwijderd uit favorieten", favoriteReciters = user.FavoriteReciters });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error removing favorite reciter {ReciterId}", reciterId);
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
-    
-    [HttpPut("me/favorite-reciters")]
-    [Authorize]
-    public async Task<IActionResult> UpdateFavoriteReciters([FromBody] List<string> favoriteReciters)
-    {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new { message = "Niet geauthenticeerd" });
-            }
-            
-            var user = await _mongoDbService.GetUserByIdAsync(userId);
-            
-            if (user == null)
-            {
-                return NotFound(new { message = "Gebruiker niet gevonden" });
-            }
-            
-            user.FavoriteReciters = favoriteReciters ?? new List<string>();
-            user.UpdatedAt = DateTime.UtcNow;
-            await _mongoDbService.UpdateUserAsync(userId, user);
-            
-            return Ok(new { message = "Favoriete reciteerders bijgewerkt", favoriteReciters = user.FavoriteReciters });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating favorite reciters");
-            return StatusCode(500, new { message = "Een interne serverfout is opgetreden" });
-        }
-    }
+
 } 
