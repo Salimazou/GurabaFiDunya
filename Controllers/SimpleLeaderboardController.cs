@@ -13,15 +13,30 @@ public class SimpleLeaderboardController : ControllerBase
 {
     private readonly SimpleDbService _db;
     private readonly ILogger<SimpleLeaderboardController> _logger;
+    private readonly IConfiguration _config;
 
-    public SimpleLeaderboardController(SimpleDbService db, ILogger<SimpleLeaderboardController> logger)
+    public SimpleLeaderboardController(SimpleDbService db, ILogger<SimpleLeaderboardController> logger, IConfiguration config)
     {
         _db = db;
         _logger = logger;
+        _config = config;
     }
 
     private string GetCurrentUserId() =>
         User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
+
+    private async Task<bool> IsCurrentUserAdminAsync()
+    {
+        var currentUserId = GetCurrentUserId();
+        var currentUser = await _db.GetUserByIdAsync(currentUserId);
+        
+        if (currentUser == null) return false;
+        
+        // Check multiple admin emails from configuration
+        var adminEmails = _config.GetSection("AdminEmails").Get<string[]>() ?? new[] { "salim@example.com" };
+        
+        return adminEmails.Contains(currentUser.Email, StringComparer.OrdinalIgnoreCase);
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetLeaderboard([FromQuery] int limit = 10)
@@ -60,7 +75,7 @@ public class SimpleLeaderboardController : ControllerBase
         }
     }
 
-    // ADMIN ENDPOINTS
+    // ADMIN ENDPOINTS - Now with proper security
     [HttpGet("admin/logs")]
     public async Task<IActionResult> GetReminderLogs(
         [FromQuery] string? userId = null,
@@ -69,12 +84,8 @@ public class SimpleLeaderboardController : ControllerBase
     {
         try
         {
-            // Simple admin check - in production you might want proper role-based auth
-            var currentUserId = GetCurrentUserId();
-            var currentUser = await _db.GetUserByIdAsync(currentUserId);
-            
-            // For MVP, let's assume first user created is admin, or check email
-            if (currentUser?.Email != "admin@example.com") // Change this to your admin email
+            // Secure admin check using configuration
+            if (!await IsCurrentUserAdminAsync())
             {
                 return Forbid("Admin access required");
             }
@@ -94,11 +105,8 @@ public class SimpleLeaderboardController : ControllerBase
     {
         try
         {
-            // Simple admin check
-            var currentUserId = GetCurrentUserId();
-            var currentUser = await _db.GetUserByIdAsync(currentUserId);
-            
-            if (currentUser?.Email != "admin@example.com") // Change this to your admin email
+            // Secure admin check using configuration
+            if (!await IsCurrentUserAdminAsync())
             {
                 return Forbid("Admin access required");
             }

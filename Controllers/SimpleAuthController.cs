@@ -60,14 +60,20 @@ public class SimpleAuthController : ControllerBase
 
             await _db.CreateUserAsync(user);
             
-            // Re-fetch user to get the ID
-            user = await _db.GetUserByEmailAsync(user.Email);
-            var token = _jwt.GenerateToken(user!);
+            // Re-fetch user to get the ID - with proper null checking
+            var createdUser = await _db.GetUserByEmailAsync(user.Email);
+            if (createdUser == null)
+            {
+                _logger.LogError("Failed to retrieve user after creation: {Email}", user.Email);
+                return StatusCode(500, new { message = "Account aangemaakt maar er is een probleem opgetreden. Probeer in te loggen." });
+            }
+
+            var token = _jwt.GenerateToken(createdUser);
 
             return Ok(new LoginResponse 
             { 
                 Token = token, 
-                User = user! 
+                User = createdUser 
             });
         }
         catch (Exception ex)
