@@ -424,13 +424,22 @@ public class MongoDbService
                         Builders<ReminderCompletion>.Filter.Eq(x => x.DeviceId, normalizedDeviceId)
                     );
                     
-                    // Use ReplaceOneModel with upsert=true for atomic operation
-                    var replaceOperation = new ReplaceOneModel<ReminderCompletion>(filter, reminderCompletion)
+                    // Use UpdateOneModel with upsert=true for atomic operation
+                    var update = Builders<ReminderCompletion>.Update
+                        .Set(x => x.UserId, reminderCompletion.UserId)
+                        .Set(x => x.ReminderId, reminderCompletion.ReminderId)
+                        .Set(x => x.ReminderTitle, reminderCompletion.ReminderTitle)
+                        .Set(x => x.CompletedAt, reminderCompletion.CompletedAt)
+                        .Set(x => x.CompletionDate, reminderCompletion.CompletionDate)
+                        .Set(x => x.DeviceId, reminderCompletion.DeviceId)
+                        .Set(x => x.SyncedAt, reminderCompletion.SyncedAt);
+                    
+                    var updateOperation = new UpdateOneModel<ReminderCompletion>(filter, update)
                     {
                         IsUpsert = true
                     };
                     
-                    bulkOperations.Add(replaceOperation);
+                    bulkOperations.Add(updateOperation);
                     processedCount++;
                 }
                 catch (Exception ex)
@@ -825,6 +834,28 @@ public class MongoDbService
         }
         
         return (currentStreak, longestStreak);
+    }
+
+    public async Task<long> CleanNullIdRecordsAsync()
+    {
+        try
+        {
+            // Delete any reminder completions with null or empty string IDs
+            var filter = Builders<ReminderCompletion>.Filter.Or(
+                Builders<ReminderCompletion>.Filter.Eq(x => x.Id, null),
+                Builders<ReminderCompletion>.Filter.Eq(x => x.Id, string.Empty)
+            );
+            
+            var result = await _reminderCompletionsCollection.DeleteManyAsync(filter);
+            
+            _logger.LogInformation("Cleaned up {DeletedCount} reminder completion records with null/empty IDs", result.DeletedCount);
+            return result.DeletedCount;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error cleaning null ID records");
+            throw;
+        }
     }
 
     // Private helper methods

@@ -354,4 +354,27 @@ public class ReminderCompletionsController : ControllerBase
             return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
         }
     }
+
+    /// <summary>
+    /// Debug endpoint to clean corrupted records with null IDs
+    /// </summary>
+    [HttpDelete("debug/clean-null-ids")]
+    public async Task<ActionResult> CleanNullIds()
+    {
+        try
+        {
+            var result = await _mongoDbService.CleanNullIdRecordsAsync();
+            
+            return Ok(new { 
+                message = "Cleanup completed",
+                deletedCount = result,
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Null ID cleanup failed");
+            return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
 } 
