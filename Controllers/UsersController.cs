@@ -94,20 +94,25 @@ public class UsersController : ControllerBase
             await _mongoDbService.CreateUserAsync(user);
             
             // Re-fetch the user to get the ID assigned by MongoDB
-            user = await _mongoDbService.GetUserByEmailAsync(user.Email);
+            var createdUser = await _mongoDbService.GetUserByEmailAsync(user.Email);
+            
+            if (createdUser == null)
+            {
+                return StatusCode(500, new { message = "Gebruiker aangemaakt maar niet gevonden" });
+            }
             
             var userDto = new UserDto
             {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Roles = user.Roles,
-                CreatedAt = user.CreatedAt,
-                FavoriteReciters = user.FavoriteReciters,
-                FirstName = user.FirstName,
-                LastName = user.LastName
+                Id = createdUser.Id,
+                Username = createdUser.Username,
+                Email = createdUser.Email,
+                Roles = createdUser.Roles,
+                CreatedAt = createdUser.CreatedAt,
+                FavoriteReciters = createdUser.FavoriteReciters,
+                FirstName = createdUser.FirstName,
+                LastName = createdUser.LastName
             };
-            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, userDto);
+            return CreatedAtAction(nameof(GetUserById), new { id = createdUser.Id }, userDto);
         }
         catch (Exception ex)
         {
