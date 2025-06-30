@@ -1006,7 +1006,8 @@ public class MongoDbService
 
             // Basic counts
             analytics.TotalRemindersCreated = logs.Count(x => x.LogType == LocalReminderLogType.ReminderCreated);
-            analytics.TotalNotificationsSent = logs.Count(x => x.LogType == LocalReminderLogType.NotificationSent);
+            analytics.TotalNotificationsSent = logs.Count(x => x.LogType == LocalReminderLogType.NotificationSent || 
+                                                                x.LogType == LocalReminderLogType.NotificationScheduled);
             analytics.TotalResponsesDone = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseDone);
             analytics.TotalResponsesNotYet = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet);
             analytics.TotalResponsesTomorrow = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow);
@@ -1028,7 +1029,8 @@ public class MongoDbService
                 {
                     ReminderId = g.Key.ReminderId,
                     ReminderTitle = g.Key.ReminderTitle,
-                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent),
+                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent || 
+                                                     x.LogType == LocalReminderLogType.NotificationScheduled),
                     CompletedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseDone),
                     SnoozedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet),
                     PostponedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow),
@@ -1044,7 +1046,8 @@ public class MongoDbService
                 .Select(g => new DailyActivityDto
                 {
                     Date = g.Key,
-                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent),
+                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent || 
+                                                     x.LogType == LocalReminderLogType.NotificationScheduled),
                     CompletedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseDone),
                     SnoozedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet),
                     PostponedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow),
