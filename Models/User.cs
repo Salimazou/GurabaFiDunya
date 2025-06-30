@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace server.Models;
 
+[BsonIgnoreExtraElements] // Ignore old favoriteReciters field and other legacy fields
 public class User
 {
     [BsonId]
