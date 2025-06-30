@@ -1,41 +1,28 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using server.Middleware;
 using server.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        // Configure JSON options to handle enums as strings
-        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-        
-        // Configure camelCase property naming (optional - matches Swift conventions)
-        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
-    });
+// Add services
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Register services
-builder.Services.AddSingleton<MongoDbService>();
-builder.Services.AddSingleton<JwtService>();
+// Register our simple services
+builder.Services.AddSingleton<SimpleDbService>();
+builder.Services.AddSingleton<SimpleJwtService>();
 
-// Add JWT Authentication
+// Add simple JWT authentication
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "your_super_secret_key_that_should_be_in_config";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.ASCII.GetBytes(
-                    builder.Configuration["Jwt:Key"] ?? 
-                    "this_is_a_default_key_for_development_only_should_be_changed_in_production"
-                )
-            ),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
@@ -43,47 +30,29 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// Add CORS policy for both local development and production frontend
+// Add simple CORS for frontend
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowedOrigins",
-        policy =>
-        {
-            policy.WithOrigins(
-                    "http://localhost:5173", 
-                    "http://localhost:5174",
-                    "http://localhost:5234",
-                    "http://localhost:80",
-                    "https://www.ghurabafidunya.live",
-                    "https://ghurabafidunya.live"
-                )
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
-// Use CORS policy with updated policy name
-app.UseCors("AllowedOrigins");
-
-// Enable authentication
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
-
-// Add custom admin authentication middleware
-app.UseAdminAuth();
-
-// Use controllers
 app.MapControllers();
 
-app.Run();
+app.Run(); 
