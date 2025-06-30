@@ -840,11 +840,13 @@ public class MongoDbService
     {
         try
         {
-            // Delete any reminder completions with null or empty string IDs
-            var filter = Builders<ReminderCompletion>.Filter.Or(
-                Builders<ReminderCompletion>.Filter.Eq(x => x.Id, null),
-                Builders<ReminderCompletion>.Filter.Eq(x => x.Id, string.Empty)
-            );
+            // Use raw BSON to avoid serialization issues with empty strings
+            var filter = new BsonDocument("$or", new BsonArray
+            {
+                new BsonDocument("_id", BsonNull.Value),
+                new BsonDocument("_id", ""),
+                new BsonDocument("_id", new BsonDocument("$exists", false))
+            });
             
             var result = await _reminderCompletionsCollection.DeleteManyAsync(filter);
             
