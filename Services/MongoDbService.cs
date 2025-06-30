@@ -15,6 +15,7 @@ public class MongoDbService
     private readonly IMongoCollection<Todo> _todosCollection;
     private readonly IMongoCollection<FavoriteReciter> _favoriteRecitersCollection;
     private readonly IMongoCollection<ReminderCompletion> _reminderCompletionsCollection;
+    private readonly IMongoCollection<LocalReminderLog> _localReminderLogsCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration config, ILogger<MongoDbService> logger)
@@ -32,6 +33,7 @@ public class MongoDbService
         _todosCollection = _database.GetCollection<Todo>(config["MongoDB:TodosCollectionName"]);
         _favoriteRecitersCollection = _database.GetCollection<FavoriteReciter>(config["MongoDB:FavoriteRecitersCollectionName"]);
         _reminderCompletionsCollection = _database.GetCollection<ReminderCompletion>(config["MongoDB:ReminderCompletionsCollectionName"]);
+        _localReminderLogsCollection = _database.GetCollection<LocalReminderLog>(config["MongoDB:LocalReminderLogsCollectionName"]);
         
         // Create indexes
         CreateIndexesAsync().ConfigureAwait(false);
@@ -860,6 +862,222 @@ public class MongoDbService
         }
     }
 
+    // Local Reminder Log operations
+    public async Task<string> CreateLocalReminderLogAsync(string userId, CreateLocalReminderLogRequest request)
+    {
+        try
+        {
+            var log = new LocalReminderLog
+            {
+                UserId = userId,
+                ReminderId = request.ReminderId,
+                ReminderTitle = request.ReminderTitle,
+                LogType = request.LogType,
+                NotificationDate = request.NotificationDate ?? DateTime.UtcNow.Date,
+                NotificationTime = request.NotificationTime ?? DateTime.UtcNow,
+                ScheduledTime = request.ScheduledTime,
+                UserResponse = request.UserResponse,
+                ResponseTime = request.ResponseTime,
+                NotificationIndex = request.NotificationIndex,
+                TotalNotificationsScheduled = request.TotalNotificationsScheduled,
+                ReminderStartTime = request.ReminderStartTime,
+                ReminderEndTime = request.ReminderEndTime,
+                DeviceId = request.DeviceId,
+                AppVersion = request.AppVersion,
+                Metadata = request.Metadata
+            };
+
+            // Calculate response delay if both notification and response times are provided
+            if (request.ResponseTime.HasValue && request.NotificationTime.HasValue)
+            {
+                log.ResponseDelayMinutes = (int)(request.ResponseTime.Value - request.NotificationTime.Value).TotalMinutes;
+            }
+
+            await _localReminderLogsCollection.InsertOneAsync(log);
+            _logger.LogInformation("Created local reminder log for user {UserId}, reminder {ReminderId}, type {LogType}", 
+                userId, request.ReminderId, request.LogType);
+            
+            return log.Id ?? "";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating local reminder log for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task BulkCreateNotificationLogsAsync(string userId, BulkNotificationLogRequest request)
+    {
+        try
+        {
+            var logs = request.Notifications.Select(notification => new LocalReminderLog
+            {
+                UserId = userId,
+                ReminderId = request.ReminderId,
+                ReminderTitle = request.ReminderTitle,
+                LogType = LocalReminderLogType.NotificationScheduled,
+                NotificationDate = notification.NotificationDate,
+                NotificationTime = notification.ScheduledTime,
+                ScheduledTime = notification.ScheduledTime,
+                NotificationIndex = notification.NotificationIndex,
+                TotalNotificationsScheduled = request.Notifications.Count,
+                ReminderStartTime = request.ReminderStartTime,
+                ReminderEndTime = request.ReminderEndTime,
+                DeviceId = request.DeviceId,
+                AppVersion = request.AppVersion
+            }).ToList();
+
+            if (logs.Any())
+            {
+                await _localReminderLogsCollection.InsertManyAsync(logs);
+                _logger.LogInformation("Bulk created {LogCount} notification logs for user {UserId}, reminder {ReminderId}", 
+                    logs.Count, userId, request.ReminderId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error bulk creating notification logs for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<List<LocalReminderLog>> GetLocalReminderLogsAsync(
+        string userId, 
+        DateTime? startDate = null, 
+        DateTime? endDate = null,
+        string? reminderId = null,
+        LocalReminderLogType? logType = null)
+    {
+        try
+        {
+            var filterBuilder = Builders<LocalReminderLog>.Filter;
+            var filter = filterBuilder.Eq(x => x.UserId, userId);
+
+            if (startDate.HasValue)
+            {
+                filter = filterBuilder.And(filter, filterBuilder.Gte(x => x.NotificationDate, startDate.Value));
+            }
+
+            if (endDate.HasValue)
+            {
+                filter = filterBuilder.And(filter, filterBuilder.Lte(x => x.NotificationDate, endDate.Value));
+            }
+
+            if (!string.IsNullOrEmpty(reminderId))
+            {
+                filter = filterBuilder.And(filter, filterBuilder.Eq(x => x.ReminderId, reminderId));
+            }
+
+            if (logType.HasValue)
+            {
+                filter = filterBuilder.And(filter, filterBuilder.Eq(x => x.LogType, logType.Value));
+            }
+
+            return await _localReminderLogsCollection
+                .Find(filter)
+                .SortByDescending(x => x.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting local reminder logs for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<LocalReminderAnalytics> GetLocalReminderAnalyticsAsync(string userId, DateTime startDate, DateTime endDate)
+    {
+        try
+        {
+            var filter = Builders<LocalReminderLog>.Filter.And(
+                Builders<LocalReminderLog>.Filter.Eq(x => x.UserId, userId),
+                Builders<LocalReminderLog>.Filter.Gte(x => x.NotificationDate, startDate),
+                Builders<LocalReminderLog>.Filter.Lte(x => x.NotificationDate, endDate)
+            );
+
+            var logs = await _localReminderLogsCollection.Find(filter).ToListAsync();
+
+            var analytics = new LocalReminderAnalytics
+            {
+                UserId = userId,
+                StartDate = startDate,
+                EndDate = endDate
+            };
+
+            // Basic counts
+            analytics.TotalRemindersCreated = logs.Count(x => x.LogType == LocalReminderLogType.ReminderCreated);
+            analytics.TotalNotificationsSent = logs.Count(x => x.LogType == LocalReminderLogType.NotificationSent);
+            analytics.TotalResponsesDone = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseDone);
+            analytics.TotalResponsesNotYet = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet);
+            analytics.TotalResponsesTomorrow = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow);
+
+            // Completion rate
+            var totalResponses = analytics.TotalResponsesDone + analytics.TotalResponsesNotYet + analytics.TotalResponsesTomorrow;
+            analytics.CompletionRate = totalResponses > 0 ? (double)analytics.TotalResponsesDone / totalResponses * 100 : 0;
+
+            // Average response time
+            var responseTimeLogs = logs.Where(x => x.ResponseDelayMinutes.HasValue).ToList();
+            analytics.AverageResponseTimeMinutes = responseTimeLogs.Any() 
+                ? responseTimeLogs.Average(x => x.ResponseDelayMinutes!.Value) 
+                : 0;
+
+            // Reminder effectiveness
+            analytics.ReminderEffectiveness = logs
+                .GroupBy(x => new { x.ReminderId, x.ReminderTitle })
+                .Select(g => new ReminderEffectivenessDto
+                {
+                    ReminderId = g.Key.ReminderId,
+                    ReminderTitle = g.Key.ReminderTitle,
+                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent),
+                    CompletedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseDone),
+                    SnoozedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet),
+                    PostponedCount = g.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow),
+                    CompletionRate = CalculateCompletionRate(g.ToList()),
+                    AverageResponseTimeMinutes = CalculateAverageResponseTime(g.ToList())
+                })
+                .OrderByDescending(x => x.CompletionRate)
+                .ToList();
+
+            // Daily activity
+            analytics.DailyActivity = logs
+                .GroupBy(x => x.NotificationDate.Date)
+                .Select(g => new DailyActivityDto
+                {
+                    Date = g.Key,
+                    NotificationsSent = g.Count(x => x.LogType == LocalReminderLogType.NotificationSent),
+                    CompletedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseDone),
+                    SnoozedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseNotYet),
+                    PostponedTasks = g.Count(x => x.LogType == LocalReminderLogType.UserResponseTomorrow),
+                    CompletionRate = CalculateCompletionRate(g.ToList())
+                })
+                .OrderBy(x => x.Date)
+                .ToList();
+
+            return analytics;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting local reminder analytics for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    private double CalculateCompletionRate(List<LocalReminderLog> logs)
+    {
+        var completed = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseDone);
+        var total = logs.Count(x => x.LogType == LocalReminderLogType.UserResponseDone ||
+                                   x.LogType == LocalReminderLogType.UserResponseNotYet ||
+                                   x.LogType == LocalReminderLogType.UserResponseTomorrow);
+        
+        return total > 0 ? (double)completed / total * 100 : 0;
+    }
+
+    private double CalculateAverageResponseTime(List<LocalReminderLog> logs)
+    {
+        var responseTimeLogs = logs.Where(x => x.ResponseDelayMinutes.HasValue).ToList();
+        return responseTimeLogs.Any() ? responseTimeLogs.Average(x => x.ResponseDelayMinutes!.Value) : 0;
+    }
+
     // Private helper methods
     private async Task CreateIndexesAsync()
     {
@@ -926,6 +1144,45 @@ public class MongoDbService
                         Unique = true,
                         Name = "userId_reminderId_completionDate_deviceId_unique"
                     }
+                )
+            );
+
+            // Local Reminder Logs indexes
+            await _localReminderLogsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<LocalReminderLog>(
+                    Builders<LocalReminderLog>.IndexKeys
+                        .Ascending(x => x.UserId)
+                        .Descending(x => x.CreatedAt),
+                    new CreateIndexOptions { Name = "userId_createdAt" }
+                )
+            );
+
+            await _localReminderLogsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<LocalReminderLog>(
+                    Builders<LocalReminderLog>.IndexKeys
+                        .Ascending(x => x.UserId)
+                        .Ascending(x => x.ReminderId)
+                        .Descending(x => x.NotificationDate),
+                    new CreateIndexOptions { Name = "userId_reminderId_notificationDate" }
+                )
+            );
+
+            await _localReminderLogsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<LocalReminderLog>(
+                    Builders<LocalReminderLog>.IndexKeys
+                        .Ascending(x => x.UserId)
+                        .Ascending(x => x.LogType)
+                        .Descending(x => x.CreatedAt),
+                    new CreateIndexOptions { Name = "userId_logType_createdAt" }
+                )
+            );
+
+            await _localReminderLogsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<LocalReminderLog>(
+                    Builders<LocalReminderLog>.IndexKeys
+                        .Ascending(x => x.NotificationDate)
+                        .Ascending(x => x.UserId),
+                    new CreateIndexOptions { Name = "notificationDate_userId" }
                 )
             );
             
