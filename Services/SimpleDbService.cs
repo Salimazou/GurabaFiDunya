@@ -28,6 +28,59 @@ public class SimpleDbService
         _reminderLogs = _database.GetCollection<ReminderLog>("ReminderLogs");
         _userStreaks = _database.GetCollection<UserStreak>("UserStreaks");
         _favoriteReciters = _database.GetCollection<FavoriteReciter>("FavoriteReciters");
+
+        // Initialize database and create indexes
+        InitializeDatabaseAsync().GetAwaiter().GetResult();
+    }
+
+    private async Task InitializeDatabaseAsync()
+    {
+        try
+        {
+            // Test connection and create database/collections by inserting and removing a test document
+            Console.WriteLine("Initializing MongoDB database and collections...");
+
+            // Create indexes for better performance
+            await CreateIndexesAsync();
+
+            Console.WriteLine("MongoDB database initialization completed successfully.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing MongoDB: {ex.Message}");
+            throw;
+        }
+    }
+
+    private async Task CreateIndexesAsync()
+    {
+        // Create index on Users collection
+        var userEmailIndex = Builders<User>.IndexKeys.Ascending(u => u.Email);
+        await _users.Indexes.CreateOneAsync(new CreateIndexModel<User>(userEmailIndex, new CreateIndexOptions { Unique = true }));
+
+        // Create indexes on Reminders collection
+        var reminderUserIdIndex = Builders<Reminder>.IndexKeys.Ascending(r => r.UserId);
+        await _reminders.Indexes.CreateOneAsync(new CreateIndexModel<Reminder>(reminderUserIdIndex));
+
+        // Create indexes on FavoriteReciters collection
+        var favoriteUserIdIndex = Builders<FavoriteReciter>.IndexKeys.Ascending(f => f.UserId);
+        var favoriteUserReciterIndex = Builders<FavoriteReciter>.IndexKeys
+            .Ascending(f => f.UserId)
+            .Ascending(f => f.ReciterId);
+        await _favoriteReciters.Indexes.CreateOneAsync(new CreateIndexModel<FavoriteReciter>(favoriteUserIdIndex));
+        await _favoriteReciters.Indexes.CreateOneAsync(new CreateIndexModel<FavoriteReciter>(favoriteUserReciterIndex));
+
+        // Create indexes on ReminderLogs collection
+        var logUserIdIndex = Builders<ReminderLog>.IndexKeys.Ascending(l => l.UserId);
+        var logTimestampIndex = Builders<ReminderLog>.IndexKeys.Descending(l => l.Timestamp);
+        await _reminderLogs.Indexes.CreateOneAsync(new CreateIndexModel<ReminderLog>(logUserIdIndex));
+        await _reminderLogs.Indexes.CreateOneAsync(new CreateIndexModel<ReminderLog>(logTimestampIndex));
+
+        // Create index on UserStreaks collection
+        var streakUserIdIndex = Builders<UserStreak>.IndexKeys.Ascending(s => s.UserId);
+        await _userStreaks.Indexes.CreateOneAsync(new CreateIndexModel<UserStreak>(streakUserIdIndex));
+
+        Console.WriteLine("Database indexes created successfully.");
     }
 
     // MARK: - User Methods
@@ -248,47 +301,43 @@ public class SimpleDbService
 
     public async Task<List<LeaderboardEntry>> GetLeaderboardAsync(int limit = 10)
     {
-        var pipeline = new[]
+        try
         {
-            new BsonDocument("$lookup", new BsonDocument
-            {
-                { "from", "Users" },
-                { "localField", "userId" },
-                { "foreignField", "_id" },
-                { "as", "user" }
-            }),
-            new BsonDocument("$unwind", "$user"),
-            new BsonDocument("$sort", new BsonDocument
-            {
-                { "currentStreak", -1 },
-                { "totalCompletions", -1 }
-            }),
-            new BsonDocument("$limit", limit),
-            new BsonDocument("$project", new BsonDocument
-            {
-                { "userId", "$userId" },
-                { "username", "$user.username" },
-                { "currentStreak", "$currentStreak" },
-                { "totalCompletions", "$totalCompletions" }
-            })
-        };
+            // Get all user streaks sorted by performance
+            var userStreaks = await _userStreaks
+                .Find(Builders<UserStreak>.Filter.Empty)
+                .SortByDescending(s => s.CurrentStreak)
+                .ThenByDescending(s => s.TotalCompletions)
+                .Limit(limit)
+                .ToListAsync();
 
-        var result = await _userStreaks.Aggregate<BsonDocument>(pipeline).ToListAsync();
-        var leaderboard = new List<LeaderboardEntry>();
+            var leaderboard = new List<LeaderboardEntry>();
 
-        for (int i = 0; i < result.Count; i++)
-        {
-            var doc = result[i];
-            leaderboard.Add(new LeaderboardEntry
+            // For each streak, get the user information
+            for (int i = 0; i < userStreaks.Count; i++)
             {
-                UserId = doc["userId"].AsString,
-                Username = doc["username"].AsString,
-                CurrentStreak = doc["currentStreak"].AsInt32,
-                TotalCompletions = doc["totalCompletions"].AsInt32,
-                Rank = i + 1
-            });
+                var streak = userStreaks[i];
+                var user = await _users.Find(u => u.Id == streak.UserId).FirstOrDefaultAsync();
+                
+                if (user != null)
+                {
+                    leaderboard.Add(new LeaderboardEntry
+                    {
+                        UserId = streak.UserId,
+                        Username = user.Username,
+                        CurrentStreak = streak.CurrentStreak,
+                        TotalCompletions = streak.TotalCompletions,
+                        Rank = i + 1
+                    });
+                }
+            }
+
+            return leaderboard;
         }
-
-        return leaderboard;
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetLeaderboardAsync: {ex.Message}");
+            throw;
+        }
     }
 } 
