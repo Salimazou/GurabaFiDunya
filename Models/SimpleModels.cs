@@ -30,6 +30,11 @@ public class User
     
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
+    // FIX: Add roles field for backward compatibility with existing database users
+    [BsonElement("roles")]
+    [BsonIgnoreIfNull]
+    public List<string>? Roles { get; set; }
 }
 
 // UPDATED REMINDER MODEL - SUPPORTS TIME RANGE SYSTEM
