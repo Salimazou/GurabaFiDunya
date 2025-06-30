@@ -7,7 +7,7 @@ public class ReminderCompletion
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
     
     [BsonElement("userId")]
     public string UserId { get; set; } = string.Empty;
@@ -33,7 +33,7 @@ public class ReminderCompletion
 
 public class ReminderCompletionDto
 {
-    public string Id { get; set; } = string.Empty;
+    public string? Id { get; set; }
     public string ReminderId { get; set; } = string.Empty;
     public string ReminderTitle { get; set; } = string.Empty;
     public DateTime CompletedAt { get; set; }

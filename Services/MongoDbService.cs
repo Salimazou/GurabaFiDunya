@@ -58,6 +58,35 @@ public class MongoDbService
     public async Task<User?> GetUserByIdAsync(string id) =>
         await _usersCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
 
+    public async Task<UserDto?> GetUserDtoWithFavoritesAsync(string id)
+    {
+        try
+        {
+            var user = await GetUserByIdAsync(id);
+            if (user == null) return null;
+
+            var favoriteReciters = await GetUserFavoriteRecitersAsync(id);
+            var favoriteReciterIds = favoriteReciters.Select(fr => fr.ReciterId).ToList();
+
+            return new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email,
+                Roles = user.Roles,
+                CreatedAt = user.CreatedAt,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                FavoriteReciters = favoriteReciterIds
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting user DTO with favorites for user {UserId}", id);
+            throw;
+        }
+    }
+
     public async Task<User?> GetUserByEmailAsync(string email) =>
         await _usersCollection.Find(x => x.Email == email).FirstOrDefaultAsync();
 
@@ -349,57 +378,95 @@ public class MongoDbService
     {
         try
         {
+            if (completions == null || !completions.Any())
+            {
+                _logger.LogWarning("No completions provided for sync for user {UserId}", userId);
+                return true; // Nothing to sync
+            }
+
             var bulkOperations = new List<WriteModel<ReminderCompletion>>();
             
             foreach (var completion in completions)
             {
-                // Check if completion already exists (duplicate prevention)
-                var existingFilter = Builders<ReminderCompletion>.Filter.And(
-                    Builders<ReminderCompletion>.Filter.Eq(x => x.UserId, userId),
-                    Builders<ReminderCompletion>.Filter.Eq(x => x.ReminderId, completion.ReminderId),
-                    Builders<ReminderCompletion>.Filter.Eq(x => x.CompletionDate, completion.CompletionDate.Date)
-                );
-                
-                if (!string.IsNullOrEmpty(completion.DeviceId))
+                try
                 {
-                    existingFilter = Builders<ReminderCompletion>.Filter.And(
-                        existingFilter,
-                        Builders<ReminderCompletion>.Filter.Eq(x => x.DeviceId, completion.DeviceId)
+                    // Validate completion
+                    if (string.IsNullOrEmpty(completion.ReminderId) || string.IsNullOrEmpty(completion.ReminderTitle))
+                    {
+                        _logger.LogWarning("Invalid completion data: ReminderId={ReminderId}, ReminderTitle={ReminderTitle}", 
+                            completion.ReminderId, completion.ReminderTitle);
+                        continue;
+                    }
+
+                    // Check if completion already exists (duplicate prevention)
+                    var existingFilter = Builders<ReminderCompletion>.Filter.And(
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.UserId, userId),
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.ReminderId, completion.ReminderId),
+                        Builders<ReminderCompletion>.Filter.Eq(x => x.CompletionDate, completion.CompletionDate.Date)
                     );
+                    
+                    if (!string.IsNullOrEmpty(completion.DeviceId))
+                    {
+                        existingFilter = Builders<ReminderCompletion>.Filter.And(
+                            existingFilter,
+                            Builders<ReminderCompletion>.Filter.Eq(x => x.DeviceId, completion.DeviceId)
+                        );
+                    }
+
+                    // Check if this completion already exists
+                    var existingCompletion = await _reminderCompletionsCollection
+                        .Find(existingFilter)
+                        .FirstOrDefaultAsync();
+
+                    if (existingCompletion != null)
+                    {
+                        _logger.LogInformation("Skipping duplicate completion for user {UserId}, reminder {ReminderId}, date {CompletionDate}",
+                            userId, completion.ReminderId, completion.CompletionDate.Date);
+                        continue; // Skip duplicates
+                    }
+                    
+                    var reminderCompletion = new ReminderCompletion
+                    {
+                        // Id = null, // MongoDB will auto-generate
+                        UserId = userId,
+                        ReminderId = completion.ReminderId,
+                        ReminderTitle = completion.ReminderTitle,
+                        CompletedAt = completion.CompletedAt,
+                        CompletionDate = completion.CompletionDate.Date,
+                        DeviceId = completion.DeviceId ?? "unknown",
+                        SyncedAt = DateTime.UtcNow
+                    };
+                    
+                    // Use insert for new documents
+                    var insertOperation = new InsertOneModel<ReminderCompletion>(reminderCompletion);
+                    
+                    bulkOperations.Add(insertOperation);
                 }
-                
-                var reminderCompletion = new ReminderCompletion
+                catch (Exception ex)
                 {
-                    UserId = userId,
-                    ReminderId = completion.ReminderId,
-                    ReminderTitle = completion.ReminderTitle,
-                    CompletedAt = completion.CompletedAt,
-                    CompletionDate = completion.CompletionDate.Date,
-                    DeviceId = completion.DeviceId,
-                    SyncedAt = DateTime.UtcNow
-                };
-                
-                // Use upsert to prevent duplicates
-                var upsertOperation = new ReplaceOneModel<ReminderCompletion>(existingFilter, reminderCompletion)
-                {
-                    IsUpsert = true
-                };
-                
-                bulkOperations.Add(upsertOperation);
+                    _logger.LogWarning(ex, "Error processing individual completion for user {UserId}, skipping", userId);
+                    continue;
+                }
             }
             
             if (bulkOperations.Count > 0)
             {
-                await _reminderCompletionsCollection.BulkWriteAsync(bulkOperations);
-                _logger.LogInformation("Synced {CompletionCount} reminder completions for user {UserId}", completions.Count, userId);
+                var result = await _reminderCompletionsCollection.BulkWriteAsync(bulkOperations);
+                _logger.LogInformation("Synced {CompletionCount} reminder completions for user {UserId}. " +
+                    "Inserted: {InsertedCount}, Modified: {ModifiedCount}", 
+                    completions.Count, userId, result.InsertedCount, result.ModifiedCount);
+            }
+            else
+            {
+                _logger.LogInformation("No valid completions to sync for user {UserId}", userId);
             }
             
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error syncing reminder completions for user {UserId}", userId);
-            throw;
+            _logger.LogError(ex, "Error syncing reminder completions for user {UserId}. Details: {ExceptionMessage}", userId, ex.Message);
+            throw; // Throw again to see the exact error
         }
     }
     
@@ -444,37 +511,57 @@ public class MongoDbService
         {
             var user = await GetUserByIdAsync(userId);
             if (user == null)
-                throw new InvalidOperationException($"User with ID {userId} not found");
-            
+            {
+                _logger.LogWarning("User with ID {UserId} not found for streak info", userId);
+                // Return default streak info instead of throwing
+                return new UserStreakInfo
+                {
+                    UserId = userId,
+                    Username = "Unknown User",
+                    CurrentStreak = 0,
+                    LongestStreak = 0,
+                    TotalCompletions = 0,
+                    LastCompletionDate = null,
+                    RecentReminders = new List<string>()
+                };
+            }
+
             var completions = await _reminderCompletionsCollection
                 .Find(x => x.UserId == userId)
                 .SortByDescending(x => x.CompletionDate)
                 .ToListAsync();
-            
+
             var streakInfo = new UserStreakInfo
             {
                 UserId = userId,
                 Username = user.Username,
-                TotalCompletions = completions.Count
+                TotalCompletions = completions.Count,
+                CurrentStreak = 0,
+                LongestStreak = 0,
+                LastCompletionDate = null,
+                RecentReminders = new List<string>()
             };
-            
+
             if (completions.Count == 0)
+            {
+                _logger.LogInformation("No reminder completions found for user {UserId}", userId);
                 return streakInfo;
-            
+            }
+
             // Calculate current streak
             var today = DateTime.UtcNow.Date;
             var currentStreak = 0;
             var longestStreak = 0;
             var tempStreak = 0;
-            
+
             // Group by date to handle multiple completions per day
             var completionsByDate = completions
                 .GroupBy(c => c.CompletionDate.Date)
                 .OrderByDescending(g => g.Key)
                 .ToList();
-            
+
             streakInfo.LastCompletionDate = completionsByDate.FirstOrDefault()?.Key;
-            
+
             // Calculate current streak (from today backwards)
             var checkDate = today;
             foreach (var dateGroup in completionsByDate)
@@ -489,7 +576,7 @@ public class MongoDbService
                     break;
                 }
             }
-            
+
             // Calculate longest streak
             var previousDate = DateTime.MinValue;
             foreach (var dateGroup in completionsByDate.OrderBy(g => g.Key))
@@ -505,23 +592,36 @@ public class MongoDbService
                 }
                 previousDate = dateGroup.Key;
             }
-            
+
             streakInfo.CurrentStreak = currentStreak;
             streakInfo.LongestStreak = longestStreak;
-            
+
             // Get recent reminder titles
             streakInfo.RecentReminders = completions
                 .Take(10)
                 .Select(c => c.ReminderTitle)
                 .Distinct()
                 .ToList();
-            
+
+            _logger.LogInformation("Retrieved streak info for user {UserId}: Current={CurrentStreak}, Longest={LongestStreak}, Total={TotalCompletions}", 
+                userId, currentStreak, longestStreak, completions.Count);
+
             return streakInfo;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting streak info for user {UserId}", userId);
-            throw;
+            // Return default values instead of throwing
+            return new UserStreakInfo
+            {
+                UserId = userId,
+                Username = "Error Loading",
+                CurrentStreak = 0,
+                LongestStreak = 0,
+                TotalCompletions = 0,
+                LastCompletionDate = null,
+                RecentReminders = new List<string>()
+            };
         }
     }
     
@@ -529,6 +629,16 @@ public class MongoDbService
     {
         try
         {
+            // First check if we have any reminder completions at all
+            var totalCompletions = await _reminderCompletionsCollection.CountDocumentsAsync(FilterDefinition<ReminderCompletion>.Empty);
+            if (totalCompletions == 0)
+            {
+                _logger.LogInformation("No reminder completions found in database");
+                return new List<LeaderboardEntry>();
+            }
+
+            var usersCollectionName = _usersCollection.CollectionNamespace.CollectionName;
+            
             var pipeline = new[]
             {
                 // Group by user to calculate stats
@@ -540,13 +650,31 @@ public class MongoDbService
                     { "completionDates", new BsonDocument("$addToSet", "$completionDate") }
                 }),
                 
+                // Convert userId string to ObjectId for lookup
+                new BsonDocument("$addFields", new BsonDocument
+                {
+                    { "userObjectId", new BsonDocument("$cond", new BsonArray
+                        {
+                            new BsonDocument("$eq", new BsonArray { new BsonDocument("$type", "$_id"), "objectId" }),
+                            "$_id",
+                            new BsonDocument("$toObjectId", "$_id")
+                        })
+                    }
+                }),
+                
                 // Lookup user information
                 new BsonDocument("$lookup", new BsonDocument
                 {
-                    { "from", "users" },
-                    { "localField", "_id" },
+                    { "from", usersCollectionName },
+                    { "localField", "userObjectId" },
                     { "foreignField", "_id" },
                     { "as", "user" }
+                }),
+                
+                // Filter out users that weren't found
+                new BsonDocument("$match", new BsonDocument
+                {
+                    { "user", new BsonDocument("$ne", new BsonArray()) }
                 }),
                 
                 // Unwind user array
@@ -557,8 +685,8 @@ public class MongoDbService
                 {
                     { "userId", "$_id" },
                     { "username", "$user.username" },
-                    { "firstName", "$user.firstName" },
-                    { "lastName", "$user.lastName" }
+                    { "firstName", new BsonDocument("$ifNull", new BsonArray { "$user.firstName", BsonNull.Value }) },
+                    { "lastName", new BsonDocument("$ifNull", new BsonArray { "$user.lastName", BsonNull.Value }) }
                 }),
                 
                 // Sort by total completions desc, then by last completion date desc
@@ -571,49 +699,60 @@ public class MongoDbService
                 // Limit results
                 new BsonDocument("$limit", limit)
             };
-            
+
             var aggregationResults = await _reminderCompletionsCollection
                 .Aggregate<BsonDocument>(pipeline)
                 .ToListAsync();
-            
+
             var leaderboard = new List<LeaderboardEntry>();
             var rank = 1;
-            
+
             foreach (var result in aggregationResults)
             {
-                var userId = result["userId"].AsString;
-                var completionDates = result["completionDates"].AsBsonArray
-                    .Select(d => d.ToUniversalTime().Date)
-                    .OrderByDescending(d => d)
-                    .ToList();
-                
-                // Calculate current and longest streak
-                var (currentStreak, longestStreak) = CalculateStreaks(completionDates);
-                
-                var entry = new LeaderboardEntry
+                try
                 {
-                    UserId = userId,
-                    Username = result["username"].AsString,
-                    FirstName = result.Contains("firstName") ? result["firstName"].AsString : null,
-                    LastName = result.Contains("lastName") ? result["lastName"].AsString : null,
-                    TotalCompletions = result["totalCompletions"].AsInt32,
-                    LastCompletionDate = result.Contains("lastCompletionDate") ? 
-                        result["lastCompletionDate"].ToUniversalTime() : null,
-                    CurrentStreak = currentStreak,
-                    LongestStreak = longestStreak,
-                    Rank = rank++
-                };
-                
-                leaderboard.Add(entry);
+                    var userId = result["userId"].AsString;
+                    var completionDates = result["completionDates"].AsBsonArray
+                        .Select(d => d.ToUniversalTime().Date)
+                        .OrderByDescending(d => d)
+                        .ToList();
+
+                    // Calculate current and longest streak
+                    var (currentStreak, longestStreak) = CalculateStreaks(completionDates);
+
+                    var entry = new LeaderboardEntry
+                    {
+                        UserId = userId,
+                        Username = result["username"].AsString,
+                        FirstName = result.Contains("firstName") && !result["firstName"].IsBsonNull ? 
+                            result["firstName"].AsString : null,
+                        LastName = result.Contains("lastName") && !result["lastName"].IsBsonNull ? 
+                            result["lastName"].AsString : null,
+                        TotalCompletions = result["totalCompletions"].AsInt32,
+                        LastCompletionDate = result.Contains("lastCompletionDate") ? 
+                            result["lastCompletionDate"].ToUniversalTime() : null,
+                        CurrentStreak = currentStreak,
+                        LongestStreak = longestStreak,
+                        Rank = rank++
+                    };
+
+                    leaderboard.Add(entry);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing leaderboard entry, skipping");
+                    continue;
+                }
             }
-            
-            _logger.LogInformation("Generated leaderboard with {EntryCount} entries", leaderboard.Count);
+
+            _logger.LogInformation("Generated leaderboard with {EntryCount} entries from {TotalCompletions} total completions", 
+                leaderboard.Count, totalCompletions);
             return leaderboard;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error generating leaderboard");
-            throw;
+            return new List<LeaderboardEntry>(); // Return empty list instead of throwing
         }
     }
     
