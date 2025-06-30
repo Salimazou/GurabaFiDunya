@@ -48,8 +48,9 @@ public class AuthController : ControllerBase
                 return Unauthorized(new { message = "Onjuist wachtwoord" });
             }
             
-            // Generate JWT token
-            var (token, refreshToken) = _jwtService.GenerateToken(user);
+            // Generate JWT token and refresh token
+            var token = _jwtService.GenerateToken(user);
+            var refreshToken = _jwtService.GenerateRefreshToken();
             
             // Generate and store secure refresh token
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, _jwtService.GetRefreshTokenExpiryTime());
@@ -116,8 +117,9 @@ public class AuthController : ControllerBase
                 return StatusCode(500, new { message = "Gebruiker aangemaakt maar niet gevonden" });
             }
             
-            // Generate JWT token
-            var (token, refreshToken) = _jwtService.GenerateToken(user);
+            // Generate JWT token and refresh token
+            var token = _jwtService.GenerateToken(user);
+            var refreshToken = _jwtService.GenerateRefreshToken();
             
             // Generate and store secure refresh token
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, refreshToken, _jwtService.GetRefreshTokenExpiryTime());
@@ -166,7 +168,8 @@ public class AuthController : ControllerBase
             }
             
             // Generate new tokens
-            var (newToken, newRefreshToken) = _jwtService.GenerateToken(user);
+            var newToken = _jwtService.GenerateToken(user);
+            var newRefreshToken = _jwtService.GenerateRefreshToken();
             
             // Store the new refresh token (this automatically revokes the old one)
             await _mongoDbService.StoreRefreshTokenAsync(user.Id, newRefreshToken, _jwtService.GetRefreshTokenExpiryTime());
