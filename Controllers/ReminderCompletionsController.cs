@@ -31,35 +31,37 @@ public class ReminderCompletionsController : ControllerBase
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
-                _logger.LogWarning("Sync request received but no user ID found in claims");
                 return Unauthorized();
             }
 
-            if (request.Completions == null || !request.Completions.Any())
+            if (request?.Completions == null)
             {
-                _logger.LogInformation("Sync request received with no completions for user {UserId}", userId);
-                return Ok(new { message = "No completions to sync", synced = 0 });
+                return BadRequest(new { error = "Completions array is required" });
+            }
+
+            _logger.LogInformation("Syncing {CompletionCount} reminder completions for user {UserId}", 
+                request.Completions.Count, userId);
+
+            // Log each completion for debugging
+            foreach (var completion in request.Completions)
+            {
+                _logger.LogInformation("Completion: ReminderId={ReminderId}, Title={ReminderTitle}, Date={CompletionDate}", 
+                    completion.ReminderId, completion.ReminderTitle, completion.CompletionDate);
             }
 
             var success = await _mongoDbService.SyncReminderCompletionsAsync(userId, request.Completions);
             
             if (success)
             {
-                _logger.LogInformation("Successfully synced {CompletionCount} reminder completions for user {UserId}", 
-                    request.Completions.Count, userId);
-                
-                return Ok(new { 
-                    message = "Reminder completions synced successfully", 
-                    synced = request.Completions.Count 
-                });
+                return Ok(new { message = "Sync completed successfully", syncedCount = request.Completions.Count });
             }
 
-            return BadRequest(new { error = "Failed to sync reminder completions" });
+            return BadRequest(new { error = "Sync failed" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error syncing reminder completions");
-            return StatusCode(500, new { error = "Internal server error during sync" });
+            _logger.LogError(ex, "Error during sync");
+            return StatusCode(500, new { error = "Internal server error during sync", details = ex.Message });
         }
     }
 
@@ -104,7 +106,8 @@ public class ReminderCompletionsController : ControllerBase
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
-                return Unauthorized();
+                _logger.LogWarning("GetMyStreak request received but no user ID found in claims");
+                return Unauthorized(new { error = "User not authenticated" });
             }
 
             var streakInfo = await _mongoDbService.GetUserStreakInfoAsync(userId);
@@ -117,7 +120,7 @@ public class ReminderCompletionsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting user streak info");
-            return StatusCode(500, new { error = "Internal server error" });
+            return StatusCode(500, new { error = "Internal server error while getting streak info" });
         }
     }
 
@@ -143,7 +146,7 @@ public class ReminderCompletionsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting leaderboard");
-            return StatusCode(500, new { error = "Internal server error" });
+            return StatusCode(500, new { error = "Internal server error while getting leaderboard" });
         }
     }
 
@@ -158,7 +161,8 @@ public class ReminderCompletionsController : ControllerBase
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(userId))
             {
-                return Unauthorized();
+                _logger.LogWarning("GetMyRank request received but no user ID found in claims");
+                return Unauthorized(new { error = "User not authenticated" });
             }
 
             // Get full leaderboard to find user's position
@@ -167,10 +171,18 @@ public class ReminderCompletionsController : ControllerBase
 
             if (userEntry == null)
             {
-                return Ok(new { rank = 0, totalUsers = leaderboard.Count, message = "User not found in leaderboard" });
+                _logger.LogInformation("User {UserId} not found in leaderboard", userId);
+                return Ok(new { 
+                    rank = 0, 
+                    totalUsers = leaderboard.Count, 
+                    currentStreak = 0,
+                    longestStreak = 0,
+                    totalCompletions = 0,
+                    message = "User not found in leaderboard" 
+                });
             }
 
-            _logger.LogInformation("User {UserId} rank: {Rank}", userId, userEntry.Rank);
+            _logger.LogInformation("User {UserId} rank: {Rank}/{TotalUsers}", userId, userEntry.Rank, leaderboard.Count);
 
             return Ok(new { 
                 rank = userEntry.Rank,
@@ -183,7 +195,7 @@ public class ReminderCompletionsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting user rank");
-            return StatusCode(500, new { error = "Internal server error" });
+            return StatusCode(500, new { error = "Internal server error while getting user rank" });
         }
     }
 
@@ -222,6 +234,124 @@ public class ReminderCompletionsController : ControllerBase
         {
             _logger.LogError(ex, "Error recording reminder completion");
             return StatusCode(500, new { error = "Internal server error" });
+        }
+    }
+
+    /// <summary>
+    /// Development endpoint to create test data (remove in production)
+    /// </summary>
+    [HttpPost("create-test-data")]
+    public async Task<ActionResult> CreateTestData()
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { error = "User not authenticated" });
+            }
+
+            // Create some test reminder completions for the past week
+            var testCompletions = new List<CreateReminderCompletionRequest>();
+            var today = DateTime.UtcNow.Date;
+
+            for (int i = 0; i < 7; i++)
+            {
+                var completionDate = today.AddDays(-i);
+                testCompletions.Add(new CreateReminderCompletionRequest
+                {
+                    ReminderId = Guid.NewGuid().ToString(),
+                    ReminderTitle = $"Test Reminder {i + 1}",
+                    CompletedAt = completionDate.AddHours(10),
+                    CompletionDate = completionDate,
+                    DeviceId = "test-device"
+                });
+            }
+
+            var success = await _mongoDbService.SyncReminderCompletionsAsync(userId, testCompletions);
+            
+            if (success)
+            {
+                _logger.LogInformation("Created {Count} test reminder completions for user {UserId}", 
+                    testCompletions.Count, userId);
+                
+                return Ok(new { 
+                    message = "Test data created successfully", 
+                    completions = testCompletions.Count 
+                });
+            }
+
+            return BadRequest(new { error = "Failed to create test data" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating test data");
+            return StatusCode(500, new { error = "Internal server error while creating test data" });
+        }
+    }
+
+    /// <summary>
+    /// Debug endpoint to test database connection
+    /// </summary>
+    [HttpGet("debug/db-test")]
+    public async Task<ActionResult> TestDatabase()
+    {
+        try
+        {
+            var canPing = await _mongoDbService.PingAsync();
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            
+            return Ok(new { 
+                databaseConnected = canPing,
+                userId = userId,
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Database test failed");
+            return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
+        }
+    }
+
+    /// <summary>
+    /// Debug endpoint to test direct reminder completion insert
+    /// </summary>
+    [HttpPost("debug/simple-insert")]
+    public async Task<ActionResult> TestSimpleInsert()
+    {
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+
+            // Try a very simple single completion
+            var completion = new CreateReminderCompletionRequest
+            {
+                ReminderId = "simple-test-" + DateTime.UtcNow.Ticks,
+                ReminderTitle = "Simple Test Reminder",
+                CompletedAt = DateTime.UtcNow,
+                CompletionDate = DateTime.UtcNow.Date,
+                DeviceId = "debug-device"
+            };
+
+            _logger.LogInformation("Attempting simple insert for user {UserId}", userId);
+            
+            var success = await _mongoDbService.SyncReminderCompletionsAsync(userId, new List<CreateReminderCompletionRequest> { completion });
+            
+            return Ok(new { 
+                success = success,
+                completion = completion,
+                timestamp = DateTime.UtcNow
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Simple insert test failed");
+            return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
         }
     }
 } 

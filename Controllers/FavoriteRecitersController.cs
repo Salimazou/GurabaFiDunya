@@ -73,7 +73,15 @@ public class FavoriteRecitersController : ControllerBase
             }
 
             _logger.LogInformation("User {UserId} added reciter {ReciterId} to favorites", userId, reciterId);
-            return Ok(new { message = "Reciter toegevoegd aan favorieten", reciterId });
+            
+            // Return updated user with favorite reciters for iOS app compatibility
+            var updatedUser = await _mongoDbService.GetUserDtoWithFavoritesAsync(userId);
+            if (updatedUser == null)
+            {
+                return StatusCode(500, new { message = "Gebruiker niet gevonden na update" });
+            }
+            
+            return Ok(updatedUser);
         }
         catch (Exception ex)
         {
@@ -104,7 +112,15 @@ public class FavoriteRecitersController : ControllerBase
             }
 
             _logger.LogInformation("User {UserId} removed reciter {ReciterId} from favorites", userId, reciterId);
-            return Ok(new { message = "Reciter verwijderd uit favorieten", reciterId });
+            
+            // Return updated user with favorite reciters for iOS app compatibility
+            var updatedUser = await _mongoDbService.GetUserDtoWithFavoritesAsync(userId);
+            if (updatedUser == null)
+            {
+                return StatusCode(500, new { message = "Gebruiker niet gevonden na update" });
+            }
+            
+            return Ok(updatedUser);
         }
         catch (Exception ex)
         {
