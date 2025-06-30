@@ -45,8 +45,16 @@ public class SimpleFavoriteRecitersController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            await _db.AddFavoriteReciterAsync(userId, reciterId);
-            return Ok(new { message = "Reciter added to favorites" });
+            var wasAdded = await _db.AddFavoriteReciterAsync(userId, reciterId);
+            
+            if (wasAdded)
+            {
+                return Ok(new { message = "Reciter added to favorites", success = true });
+            }
+            else
+            {
+                return Ok(new { message = "Reciter already in favorites", success = false });
+            }
         }
         catch (Exception ex)
         {

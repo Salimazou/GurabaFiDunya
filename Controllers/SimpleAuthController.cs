@@ -48,23 +48,23 @@ public class SimpleAuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] User user)
+    public async Task<IActionResult> Register([FromBody] RegisterRequest registerRequest)
     {
         try
         {
-            var existing = await _db.GetUserByEmailAsync(user.Email);
+            var existing = await _db.GetUserByEmailAsync(registerRequest.Email);
             if (existing != null)
             {
                 return Conflict(new { message = "Email al in gebruik" });
             }
 
-            await _db.CreateUserAsync(user);
+            await _db.CreateUserAsync(registerRequest);
             
             // Re-fetch user to get the ID - with proper null checking
-            var createdUser = await _db.GetUserByEmailAsync(user.Email);
+            var createdUser = await _db.GetUserByEmailAsync(registerRequest.Email);
             if (createdUser == null)
             {
-                _logger.LogError("Failed to retrieve user after creation: {Email}", user.Email);
+                _logger.LogError("Failed to retrieve user after creation: {Email}", registerRequest.Email);
                 return StatusCode(500, new { message = "Account aangemaakt maar er is een probleem opgetreden. Probeer in te loggen." });
             }
 

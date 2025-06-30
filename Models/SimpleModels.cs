@@ -85,12 +85,12 @@ public class Reminder
         if (endMinutes <= startMinutes) return new List<string>();
         
         var totalDuration = endMinutes - startMinutes;
-        var interval = totalDuration / 5; // 5 intervals = 6 notification points
+        var interval = (double)totalDuration / 5.0; // FIX: Use decimal division for even spacing
         
         var times = new List<string>();
         for (int i = 0; i <= 5; i++)
         {
-            var notificationMinutes = startMinutes + (interval * i);
+            var notificationMinutes = (int)Math.Round(startMinutes + (interval * i));
             times.Add(MinutesToTime(notificationMinutes));
         }
         
@@ -206,6 +206,25 @@ public class LoginResponse
 {
     public string Token { get; set; } = string.Empty;
     public User User { get; set; } = null!;
+}
+
+// NEW: Secure DTO for user registration
+public class RegisterRequest
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    
+    [Required]
+    [MinLength(6)]
+    public string Password { get; set; } = string.Empty;
+    
+    [Required]
+    public string Username { get; set; } = string.Empty;
+    
+    public string FirstName { get; set; } = string.Empty;
+    
+    public string LastName { get; set; } = string.Empty;
 }
 
 public class CreateReminderRequest
