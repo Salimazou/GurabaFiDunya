@@ -30,7 +30,7 @@ public class SimpleJwtService
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Email, user.Email)
             }),
-            Expires = DateTime.UtcNow.AddDays(7), // Simple 7-day token
+            Expires = DateTime.UtcNow.AddDays(8),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
         

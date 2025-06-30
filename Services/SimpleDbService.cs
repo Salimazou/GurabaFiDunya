@@ -57,6 +57,25 @@ public class SimpleDbService
     public async Task DeleteReminderAsync(string id) =>
         await _reminders.DeleteOneAsync(r => r.Id == id);
     
+    // NEW: Bulk update reminders for daily reset functionality
+    public async Task BulkUpdateRemindersAsync(List<Reminder> reminders)
+    {
+        if (!reminders.Any()) return;
+        
+        var updates = new List<WriteModel<Reminder>>();
+        foreach (var reminder in reminders)
+        {
+            var filter = Builders<Reminder>.Filter.Eq(r => r.Id, reminder.Id);
+            var update = new ReplaceOneModel<Reminder>(filter, reminder);
+            updates.Add(update);
+        }
+        
+        if (updates.Any())
+        {
+            await _reminders.BulkWriteAsync(updates);
+        }
+    }
+    
     // REMINDER LOG OPERATIONS (For Admin)
     public async Task LogReminderActionAsync(string userId, string reminderId, string reminderTitle, string action, string? deviceId = null)
     {
@@ -70,8 +89,8 @@ public class SimpleDbService
         };
         await _reminderLogs.InsertOneAsync(log);
         
-        // Update streak if action is "done"
-        if (action == "done")
+        // Update streak if action is "done" or "completed"
+        if (action == "done" || action == "completed")
         {
             await UpdateUserStreakAsync(userId);
         }
@@ -93,8 +112,12 @@ public class SimpleDbService
         return await _reminderLogs.Find(filter).SortByDescending(r => r.Timestamp).ToListAsync();
     }
     
-    // STREAK OPERATIONS
-    private async Task UpdateUserStreakAsync(string userId)
+    // NEW: Get reminder logs for specific user (used in controller)
+    public async Task<List<ReminderLog>> GetUserReminderLogsAsync(string userId) =>
+        await GetReminderLogsAsync(userId, DateTime.UtcNow.AddDays(-30), DateTime.UtcNow);
+    
+    // STREAK OPERATIONS - Made public for controller access
+    public async Task UpdateUserStreakAsync(string userId)
     {
         var today = DateTime.UtcNow.Date;
         var streak = await _userStreaks.Find(s => s.UserId == userId).FirstOrDefaultAsync();

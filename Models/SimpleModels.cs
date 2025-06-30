@@ -32,7 +32,7 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-// SIMPLIFIED REMINDER MODEL  
+// UPDATED REMINDER MODEL - SUPPORTS TIME RANGE SYSTEM
 public class Reminder
 {
     [BsonId]
@@ -47,14 +47,80 @@ public class Reminder
     [Required]
     public string Title { get; set; } = string.Empty;
     
-    [BsonElement("notificationTimes")]
-    public List<string> NotificationTimes { get; set; } = new(); // ["09:00", "13:00", "18:00"]
+    [BsonElement("startTime")]
+    [Required]
+    public string StartTime { get; set; } = string.Empty; // e.g. "08:00"
     
-    [BsonElement("isActive")]
-    public bool IsActive { get; set; } = true;
+    [BsonElement("endTime")]
+    [Required]
+    public string EndTime { get; set; } = string.Empty;   // e.g. "20:00"
+    
+    [BsonElement("isCompletedToday")]
+    public bool IsCompletedToday { get; set; } = false;
+    
+    [BsonElement("lastCompletionDate")]
+    public DateTime? LastCompletionDate { get; set; }
     
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    
+    // Computed property: Calculate 6 notification times
+    [BsonIgnore]
+    public List<string> CalculatedTimes
+    {
+        get
+        {
+            return CalculateNotificationTimes(StartTime, EndTime);
+        }
+    }
+    
+    [BsonIgnore]
+    public string FormattedTimeRange => $"{StartTime} - {EndTime} (6 meldingen)";
+    
+    private static List<string> CalculateNotificationTimes(string start, string end)
+    {
+        var startMinutes = TimeToMinutes(start);
+        var endMinutes = TimeToMinutes(end);
+        
+        if (endMinutes <= startMinutes) return new List<string>();
+        
+        var totalDuration = endMinutes - startMinutes;
+        var interval = totalDuration / 5; // 5 intervals = 6 notification points
+        
+        var times = new List<string>();
+        for (int i = 0; i <= 5; i++)
+        {
+            var notificationMinutes = startMinutes + (interval * i);
+            times.Add(MinutesToTime(notificationMinutes));
+        }
+        
+        return times;
+    }
+    
+    private static int TimeToMinutes(string time)
+    {
+        var parts = time.Split(':');
+        if (parts.Length != 2 || !int.TryParse(parts[0], out int hours) || !int.TryParse(parts[1], out int minutes))
+            return 0;
+        return hours * 60 + minutes;
+    }
+    
+    private static string MinutesToTime(int minutes)
+    {
+        var hours = minutes / 60;
+        var mins = minutes % 60;
+        return $"{hours:D2}:{mins:D2}";
+    }
+    
+    // Daily reset check
+    public void CheckDailyReset()
+    {
+        if (LastCompletionDate.HasValue && LastCompletionDate.Value.Date < DateTime.UtcNow.Date)
+        {
+            IsCompletedToday = false;
+            LastCompletionDate = null;
+        }
+    }
 }
 
 // SIMPLIFIED REMINDER LOG FOR ADMIN TRACKING
@@ -74,7 +140,7 @@ public class ReminderLog
     public string ReminderTitle { get; set; } = string.Empty;
     
     [BsonElement("action")]
-    public string Action { get; set; } = string.Empty; // "sent", "done", "ignored", "snoozed"
+    public string Action { get; set; } = string.Empty; // "sent", "done", "ignored", "snoozed", "completed"
     
     [BsonElement("timestamp")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
@@ -126,7 +192,7 @@ public class FavoriteReciter
     public int Order { get; set; } = 0;
 }
 
-// SIMPLE DTOs
+// UPDATED DTOs
 public class LoginRequest
 {
     [Required]
@@ -148,7 +214,10 @@ public class CreateReminderRequest
     public string Title { get; set; } = string.Empty;
     
     [Required]
-    public List<string> NotificationTimes { get; set; } = new();
+    public string StartTime { get; set; } = string.Empty;
+    
+    [Required]
+    public string EndTime { get; set; } = string.Empty;
 }
 
 public class LogReminderActionRequest
@@ -160,6 +229,14 @@ public class LogReminderActionRequest
     public string Action { get; set; } = string.Empty; // "done", "ignored", "snoozed"
     
     public string? DeviceId { get; set; }
+}
+
+public class MarkReminderCompleteRequest
+{
+    [Required]
+    public string ReminderId { get; set; } = string.Empty;
+    
+    public DateTime CompletedAt { get; set; } = DateTime.UtcNow;
 }
 
 public class LeaderboardEntry
