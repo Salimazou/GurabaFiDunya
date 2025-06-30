@@ -301,47 +301,43 @@ public class SimpleDbService
 
     public async Task<List<LeaderboardEntry>> GetLeaderboardAsync(int limit = 10)
     {
-        var pipeline = new[]
+        try
         {
-            new BsonDocument("$lookup", new BsonDocument
-            {
-                { "from", "Users" },
-                { "localField", "userId" },
-                { "foreignField", "_id" },
-                { "as", "user" }
-            }),
-            new BsonDocument("$unwind", "$user"),
-            new BsonDocument("$sort", new BsonDocument
-            {
-                { "currentStreak", -1 },
-                { "totalCompletions", -1 }
-            }),
-            new BsonDocument("$limit", limit),
-            new BsonDocument("$project", new BsonDocument
-            {
-                { "userId", "$userId" },
-                { "username", "$user.username" },
-                { "currentStreak", "$currentStreak" },
-                { "totalCompletions", "$totalCompletions" }
-            })
-        };
+            // Get all user streaks sorted by performance
+            var userStreaks = await _userStreaks
+                .Find(Builders<UserStreak>.Filter.Empty)
+                .SortByDescending(s => s.CurrentStreak)
+                .ThenByDescending(s => s.TotalCompletions)
+                .Limit(limit)
+                .ToListAsync();
 
-        var result = await _userStreaks.Aggregate<BsonDocument>(pipeline).ToListAsync();
-        var leaderboard = new List<LeaderboardEntry>();
+            var leaderboard = new List<LeaderboardEntry>();
 
-        for (int i = 0; i < result.Count; i++)
-        {
-            var doc = result[i];
-            leaderboard.Add(new LeaderboardEntry
+            // For each streak, get the user information
+            for (int i = 0; i < userStreaks.Count; i++)
             {
-                UserId = doc["userId"].AsString,
-                Username = doc["username"].AsString,
-                CurrentStreak = doc["currentStreak"].AsInt32,
-                TotalCompletions = doc["totalCompletions"].AsInt32,
-                Rank = i + 1
-            });
+                var streak = userStreaks[i];
+                var user = await _users.Find(u => u.Id == streak.UserId).FirstOrDefaultAsync();
+                
+                if (user != null)
+                {
+                    leaderboard.Add(new LeaderboardEntry
+                    {
+                        UserId = streak.UserId,
+                        Username = user.Username,
+                        CurrentStreak = streak.CurrentStreak,
+                        TotalCompletions = streak.TotalCompletions,
+                        Rank = i + 1
+                    });
+                }
+            }
+
+            return leaderboard;
         }
-
-        return leaderboard;
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetLeaderboardAsync: {ex.Message}");
+            throw;
+        }
     }
 } 
