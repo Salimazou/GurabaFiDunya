@@ -457,11 +457,11 @@ public class MongoDbService
                         "Inserted: {InsertedCount}, Modified: {ModifiedCount}, Upserted: {UpsertedCount}", 
                         processedCount, userId, result.InsertedCount, result.ModifiedCount, result.Upserts.Count);
                 }
-                catch (MongoBulkWriteException ex)
+                catch (MongoBulkWriteException<ReminderCompletion> ex)
                 {
                     // Handle duplicate key errors gracefully - this can still happen during high concurrency
-                    var duplicateErrors = ex.WriteErrors?.Where(e => e.Code == 11000).ToList() ?? new List<MongoBulkWriteError>();
-                    var otherErrors = ex.WriteErrors?.Where(e => e.Code != 11000).ToList() ?? new List<MongoBulkWriteError>();
+                    var duplicateErrors = ex.WriteErrors?.Where(e => e.Code == 11000).ToList() ?? new List<BulkWriteError>();
+                    var otherErrors = ex.WriteErrors?.Where(e => e.Code != 11000).ToList() ?? new List<BulkWriteError>();
                     
                     if (duplicateErrors.Any())
                     {
