@@ -162,7 +162,7 @@ public class ReminderLog
 public class UserStreak
 {
     [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonRepresentation(BsonType.ObjectsId)]
     public string Id { get; set; } = string.Empty;
     
     [BsonElement("userId")]
