@@ -23,25 +23,9 @@ builder.Services.AddScoped<ReminderBackgroundService>();
 
 // Configure Hangfire with MongoDB
 var baseConnectionString = builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017";
-var hangfireConnectionString = baseConnectionString;
 
-// Add database name if not present
-if (!baseConnectionString.Contains("/GhareebDB"))
-{
-    if (baseConnectionString.Contains("?"))
-    {
-        // Insert database name before query parameters
-        hangfireConnectionString = baseConnectionString.Replace("/?", "/GhareebDB?");
-        if (!hangfireConnectionString.Contains("/GhareebDB"))
-        {
-            hangfireConnectionString = baseConnectionString.Replace("?", "/GhareebDB?");
-        }
-    }
-    else
-    {
-        hangfireConnectionString = $"{baseConnectionString.TrimEnd('/')}/GhareebDB";
-    }
-}
+// For Hangfire, use a explicit database name format
+var hangfireConnectionString = "mongodb+srv://salimazazouaoui:U6jYsyqbnqQpcY9Z@cluster0.lswrffy.mongodb.net/GhareebDB?retryWrites=true&w=majority&appName=Cluster0";
 
 var migrationOptions = new MongoMigrationOptions
 {
