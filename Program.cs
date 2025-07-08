@@ -22,7 +22,27 @@ builder.Services.AddSingleton<PushNotificationService>();
 builder.Services.AddScoped<ReminderBackgroundService>();
 
 // Configure Hangfire with MongoDB
-var connectionString = builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017/ghurabafidunya";
+var baseConnectionString = builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017";
+var hangfireConnectionString = baseConnectionString;
+
+// Add database name if not present
+if (!baseConnectionString.Contains("/GhareebDB"))
+{
+    if (baseConnectionString.Contains("?"))
+    {
+        // Insert database name before query parameters
+        hangfireConnectionString = baseConnectionString.Replace("/?", "/GhareebDB?");
+        if (!hangfireConnectionString.Contains("/GhareebDB"))
+        {
+            hangfireConnectionString = baseConnectionString.Replace("?", "/GhareebDB?");
+        }
+    }
+    else
+    {
+        hangfireConnectionString = $"{baseConnectionString.TrimEnd('/')}/GhareebDB";
+    }
+}
+
 var migrationOptions = new MongoMigrationOptions
 {
     MigrationStrategy = new MigrateMongoMigrationStrategy(),
@@ -31,7 +51,7 @@ var migrationOptions = new MongoMigrationOptions
 
 builder.Services.AddHangfire(config =>
 {
-    config.UseMongoStorage(connectionString, new MongoStorageOptions
+    config.UseMongoStorage(hangfireConnectionString, new MongoStorageOptions
     {
         MigrationOptions = migrationOptions,
         Prefix = "hangfire",
