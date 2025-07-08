@@ -94,6 +94,18 @@ public class SimpleDbService
         return await _users.Find(u => u.Id == id).FirstOrDefaultAsync();
     }
 
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        return await _users.Find(Builders<User>.Filter.Empty).ToListAsync();
+    }
+
+    public async Task UpdateUserDeviceTokenAsync(string userId, string? deviceToken)
+    {
+        var filter = Builders<User>.Filter.Eq(u => u.Id, userId);
+        var update = Builders<User>.Update.Set(u => u.DeviceToken, deviceToken);
+        await _users.UpdateOneAsync(filter, update);
+    }
+
     // FIX: Renamed parameter from 'user' to 'registerRequest' and properly handle plaintext password
     public async Task CreateUserAsync(RegisterRequest registerRequest)
     {
@@ -266,6 +278,7 @@ public class SimpleDbService
 
         if (streak == null)
         {
+            // Create new streak record
             streak = new UserStreak
             {
                 UserId = userId,
@@ -280,15 +293,21 @@ public class SimpleDbService
         {
             var lastDate = streak.LastCompletionDate?.Date;
 
+            // Don't double count same day completions
+            if (lastDate == today)
+            {
+                return; // Already counted for today
+            }
+
             if (lastDate == null || lastDate == today.AddDays(-1))
             {
-                // Continue streak
+                // Continue or maintain streak
                 streak.CurrentStreak++;
                 streak.LongestStreak = Math.Max(streak.LongestStreak, streak.CurrentStreak);
             }
-            else if (lastDate != today)
+            else if (lastDate < today.AddDays(-1))
             {
-                // Reset streak
+                // Gap in streak - reset to 1
                 streak.CurrentStreak = 1;
             }
 
