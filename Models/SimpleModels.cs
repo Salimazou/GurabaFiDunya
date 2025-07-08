@@ -39,6 +39,10 @@ public class User
     [BsonElement("roles")]
     [BsonIgnoreIfNull]
     public List<string>? Roles { get; set; }
+    
+    [BsonElement("deviceToken")]
+    [BsonIgnoreIfNull]
+    public string? DeviceToken { get; set; }
 }
 
 // UPDATED REMINDER MODEL - SUPPORTS TIME RANGE SYSTEM
@@ -274,4 +278,12 @@ public class LeaderboardEntry
     public int CurrentStreak { get; set; }
     public int TotalCompletions { get; set; }
     public int Rank { get; set; }
+}
+
+public class RegisterDeviceTokenRequest
+{
+    [Required]
+    public string DeviceToken { get; set; } = string.Empty;
+    
+    public string Platform { get; set; } = "iOS"; // iOS or Android
 } 
