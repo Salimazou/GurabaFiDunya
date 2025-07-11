@@ -1,66 +1,21 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
-using server.Services;
 using System.Text;
-using Hangfire;
-using Hangfire.Dashboard;
-using Hangfire.Mongo;
-using Hangfire.Mongo.Migration.Strategies;
-using Hangfire.Mongo.Migration.Strategies.Backup;
+using GurabaFiDunya.Services;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
+// Configure MongoDB BSON serialization for DateOnly and TimeOnly
+BsonSerializer.RegisterSerializer(new DateOnlySerializer());
+BsonSerializer.RegisterSerializer(new TimeOnlySerializer());
+
+// Add services to the container
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
-// Register our simple services
-builder.Services.AddSingleton<SimpleDbService>();
-builder.Services.AddSingleton<SimpleJwtService>();
-builder.Services.AddSingleton<PushNotificationService>();
-builder.Services.AddScoped<ReminderBackgroundService>();
-
-// Configure Hangfire with MongoDB
-var baseConnectionString = builder.Configuration.GetConnectionString("MongoDB") ?? "mongodb://localhost:27017";
-
-// For Hangfire, use a explicit database name format
-var hangfireConnectionString = "mongodb+srv://salimazazouaoui:U6jYsyqbnqQpcY9Z@cluster0.lswrffy.mongodb.net/GhareebDB?retryWrites=true&w=majority&appName=Cluster0";
-
-var migrationOptions = new MongoMigrationOptions
-{
-    MigrationStrategy = new MigrateMongoMigrationStrategy(),
-    BackupStrategy = new CollectionMongoBackupStrategy()
-};
-
-builder.Services.AddHangfire(config =>
-{
-    config.UseMongoStorage(hangfireConnectionString, new MongoStorageOptions
-    {
-        MigrationOptions = migrationOptions,
-        Prefix = "hangfire",
-        CheckConnection = true
-    });
-});
-builder.Services.AddHangfireServer();
-
-// Add simple JWT authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "your_super_secret_key_that_should_be_in_config";
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.Zero
-        };
-    });
-
-// Add simple CORS for frontend
+// Configure CORS
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -71,39 +26,156 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Add MongoDB services
+builder.Services.AddSingleton<DatabaseService>();
+
+// Add JWT services
+builder.Services.AddSingleton<JwtService>();
+
+// Add HttpClient for external API calls
+builder.Services.AddHttpClient();
+
+// Configure JWT Authentication
+var jwtKey = builder.Configuration["JWT:Key"] ?? throw new InvalidOperationException("JWT Key not found");
+var jwtIssuer = builder.Configuration["JWT:Issuer"] ?? throw new InvalidOperationException("JWT Issuer not found");
+var jwtAudience = builder.Configuration["JWT:Audience"] ?? throw new InvalidOperationException("JWT Audience not found");
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtKey)),
+        ValidateIssuer = true,
+        ValidIssuer = jwtIssuer,
+        ValidateAudience = true,
+        ValidAudience = jwtAudience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+// Add authorization
+builder.Services.AddAuthorization();
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "Islam App API",
+        Version = "v1",
+        Description = "A comprehensive API for the Islam Reminder App with Quran audio streaming and user management."
+    });
+    
+    // Add JWT Authentication to Swagger
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+            },
+            new List<string>()
+        }
+    });
+});
+
 var app = builder.Build();
 
-// Configure pipeline
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Islam App API V1");
+        c.RoutePrefix = string.Empty; // Serve Swagger UI at the root
+    });
 }
 
+app.UseHttpsRedirection();
+
 app.UseCors();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Configure Hangfire Dashboard
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = new[] { new HangfireAuthorizationFilter() }
-});
-
 app.MapControllers();
 
-// Schedule recurring background jobs
-ReminderBackgroundService.ScheduleRecurringJobs();
+// Health check endpoint
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// Initialize database indexes
+try
+{
+    var databaseService = app.Services.GetRequiredService<DatabaseService>();
+    await databaseService.InitializeIndexesAsync();
+    
+    if (await databaseService.TestConnectionAsync())
+    {
+        Console.WriteLine("✅ MongoDB connection successful!");
+    }
+    else
+    {
+        Console.WriteLine("❌ MongoDB connection failed!");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"❌ Database initialization error: {ex.Message}");
+}
 
 app.Run();
 
-// Custom authorization filter for Hangfire dashboard
-public class HangfireAuthorizationFilter : IDashboardAuthorizationFilter
+// Custom serializers for DateOnly and TimeOnly to work with MongoDB
+public class DateOnlySerializer : SerializerBase<DateOnly>
 {
-    public bool Authorize(DashboardContext context)
+    public override DateOnly Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
     {
-        // In development, allow all access
-        // In production, you should implement proper authorization
-        return true; // TODO: Implement proper admin authorization
+        var dateTime = context.Reader.ReadDateTime();
+        return DateOnly.FromDateTime(DateTime.FromBinary(dateTime));
     }
-} 
+
+    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, DateOnly value)
+    {
+        var dateTime = value.ToDateTime(TimeOnly.MinValue);
+        context.Writer.WriteDateTime(dateTime.ToBinary());
+    }
+}
+
+public class TimeOnlySerializer : SerializerBase<TimeOnly>
+{
+    public override TimeOnly Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+    {
+        var timeSpan = TimeSpan.FromTicks(context.Reader.ReadInt64());
+        return TimeOnly.FromTimeSpan(timeSpan);
+    }
+
+    public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, TimeOnly value)
+    {
+        context.Writer.WriteInt64(value.ToTimeSpan().Ticks);
+    }
+}

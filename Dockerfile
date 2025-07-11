@@ -1,21 +1,32 @@
-# Gebruik de officiële .NET runtime image als base
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+# Use the official .NET runtime image as base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 80
+EXPOSE 443
 
-# Gebruik de .NET SDK image voor bouwen en publiceren
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+# Use the .NET SDK image for building and publishing
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+COPY ["GurabaFiDunya.csproj", "./"]
+RUN dotnet restore "GurabaFiDunya.csproj"
 COPY . .
-RUN dotnet restore server.csproj
-RUN dotnet publish server.csproj -c Release -o /app/publish
+WORKDIR "/src"
+RUN dotnet build "GurabaFiDunya.csproj" -c Release -o /app/build
 
-# Definieer de runtime en stel de poort in naar 80
+FROM build AS publish
+RUN dotnet publish "GurabaFiDunya.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+# Define the runtime and set the port to 80
 FROM base AS final
 WORKDIR /app
-COPY --from=build /app/publish .
+COPY --from=publish /app/publish .
 
-# Stel de omgevingsvariabele in zodat de app naar poort 80 luistert
+# Set environment variables for production
+ENV ASPNETCORE_ENVIRONMENT=Production
 ENV ASPNETCORE_URLS=http://+:80
 
-ENTRYPOINT ["dotnet", "server.dll"]
+# Create a non-root user for security
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+
+ENTRYPOINT ["dotnet", "GurabaFiDunya.dll"] 

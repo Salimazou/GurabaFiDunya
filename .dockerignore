@@ -1,0 +1,55 @@
+# Ignore iOS app directory
+IslamAppUI/
+
+# Ignore git files
+.git
+.gitignore
+.gitattributes
+
+# Ignore documentation
+README.md
+*.md
+
+# Ignore deployment scripts
+deploy.sh
+
+# Ignore Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.cache
+*.docstates
+
+# Ignore build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# Ignore NuGet packages
+*.nupkg
+**/packages/*
+
+# Ignore test results
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+**/tmp/
+**/temp/
+**/.tmp/
+**/.temp/
+
+# Ignore macOS files
+.DS_Store
+**/.DS_Store
+
+# Ignore node modules if any
+node_modules/ 

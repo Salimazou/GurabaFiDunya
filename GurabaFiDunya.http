@@ -1,0 +1,6 @@
+@GurabaFiDunya_HostAddress = http://localhost:5115
+
+GET {{GurabaFiDunya_HostAddress}}/weatherforecast/
+Accept: application/json
+
+### 
